@@ -27,6 +27,7 @@
   .meta b { color: #1c2733; }
   .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #e8eef4; color: #14324a; margin-right: 6px; }
   .tag.trade { background: #e6f4ea; color: #1a6b3c; }
+  .tag.durham { background: #e8e4f4; color: #4a2a8a; }
   .val { color: #0a7a3d; font-weight: 700; }
   details { margin-top: 8px; font-size: 13px; color: #445; }
   details summary { cursor: pointer; color: #1463a0; }
@@ -48,7 +49,7 @@
 <div class="filters">
   <input type="text" id="q" placeholder="Search address, contractor, description, permit #…">
   <select id="f-type"><option value="">All types</option></select>
-  <select id="f-feed"><option value="">All feeds</option><option value="wake_building">Building</option><option value="wake_trade">Trade</option></select>
+  <select id="f-feed"><option value="">All feeds</option><option value="wake_building">Wake building</option><option value="wake_trade">Wake trade</option><option value="durham_active">Durham</option></select>
   <select id="f-sort">
     <option value="new">Newest first</option>
     <option value="val">Highest valuation</option>
@@ -109,6 +110,7 @@ function render() {
         ${p.permit_type ? `<span class="tag">${esc(p.permit_type)}</span>` : ""}
         ${p.work_class ? `<span class="tag">${esc(p.work_class)}</span>` : ""}
         ${p.source_feed === "wake_trade" ? `<span class="tag trade">trade</span>` : ""}
+        ${p.source_feed === "durham_active" ? `<span class="tag durham">durham</span>` : ""}
         ${p.status ? `<span class="tag">${esc(p.status)}</span>` : ""}
       </div>
       <details><summary>Details</summary>
