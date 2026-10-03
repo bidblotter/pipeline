@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BidBlotter — Raleigh-Durham Permit Intel (Preview)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; color: #1c2733; }
+  header { background: #14324a; color: #fff; padding: 20px 16px; }
+  header h1 { font-size: 22px; letter-spacing: .5px; }
+  header h1 span { color: #ffb020; }
+  header p { opacity: .75; font-size: 13px; margin-top: 4px; }
+  .badge { display: inline-block; background: #ffb020; color: #14324a; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+  .stats { display: flex; gap: 12px; padding: 14px 16px; flex-wrap: wrap; }
+  .stat { background: #fff; border-radius: 8px; padding: 10px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); flex: 1; min-width: 120px; }
+  .stat b { font-size: 20px; display: block; }
+  .stat small { color: #667; }
+  .filters { background: #fff; margin: 0 16px 12px; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: flex; gap: 8px; flex-wrap: wrap; }
+  .filters input, .filters select { padding: 8px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: 14px; }
+  .filters input[type=text] { flex: 2; min-width: 160px; }
+  #list { padding: 0 16px 40px; display: grid; gap: 10px; }
+  .card { background: #fff; border-radius: 8px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { font-size: 15px; margin-bottom: 4px; }
+  .card .addr { color: #445; font-size: 13px; margin-bottom: 8px; }
+  .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: #445; }
+  .meta b { color: #1c2733; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #e8eef4; color: #14324a; margin-right: 6px; }
+  .tag.trade { background: #e6f4ea; color: #1a6b3c; }
+  .val { color: #0a7a3d; font-weight: 700; }
+  details { margin-top: 8px; font-size: 13px; color: #445; }
+  details summary { cursor: pointer; color: #1463a0; }
+  .empty { text-align: center; color: #889; padding: 40px; }
+  footer { text-align: center; color: #889; font-size: 12px; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bid<span>Blotter</span><span class="badge">PREVIEW</span></h1>
+  <p>Raleigh-Durham permit intelligence — live data, refreshed daily</p>
+</header>
+<div class="stats">
+  <div class="stat"><b id="s-total">–</b><small>permits (90 days)</small></div>
+  <div class="stat"><b id="s-week">–</b><small>filed in last 7 days</small></div>
+  <div class="stat"><b id="s-val">–</b><small>total valuation</small></div>
+  <div class="stat"><b id="s-updated">–</b><small>last updated</small></div>
+</div>
+<div class="filters">
+  <input type="text" id="q" placeholder="Search address, contractor, description, permit #…">
+  <select id="f-type"><option value="">All types</option></select>
+  <select id="f-feed"><option value="">All feeds</option><option value="wake_building">Building</option><option value="wake_trade">Trade</option></select>
+  <select id="f-sort">
+    <option value="new">Newest first</option>
+    <option value="val">Highest valuation</option>
+  </select>
+</div>
+<div id="list"></div>
+<footer>BidBlotter preview — data: Wake County public permit feeds. Not for redistribution.</footer>
+<script>
+let permits = [];
+const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
+const dstr = s => s ? s.slice(0, 10) : "–";
+
+async function load() {
+  const res = await fetch("data/permits.json");
+  const data = await res.json();
+  permits = data.permits || [];
+  document.getElementById("s-total").textContent = data.count.toLocaleString();
+  const week = Date.now() - 7 * 864e5;
+  document.getElementById("s-week").textContent =
+    permits.filter(p => new Date(p.applied_date || p.issued_date || 0) > week).length.toLocaleString();
+  const tot = permits.reduce((s, p) => s + (Number(p.valuation) || 0), 0);
+  document.getElementById("s-val").textContent = "$" + (tot / 1e6).toFixed(1) + "M";
+  document.getElementById("s-updated").textContent = (data.generated_at || "").slice(0, 10);
+  const types = [...new Set(permits.map(p => p.permit_type).filter(Boolean))].sort();
+  const sel = document.getElementById("f-type");
+  types.forEach(t => { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); });
+  render();
+}
+function render() {
+  const q = document.getElementById("q").value.toLowerCase();
+  const ft = document.getElementById("f-type").value;
+  const ff = document.getElementById("f-feed").value;
+  const sort = document.getElementById("f-sort").value;
+  let rows = permits.filter(p => {
+    if (ft && p.permit_type !== ft) return false;
+    if (ff && p.source_feed !== ff) return false;
+    if (q) {
+      const hay = [p.address, p.city, p.contractor, p.description, p.permit_number].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  rows.sort((a, b) => sort === "val"
+    ? (Number(b.valuation) || 0) - (Number(a.valuation) || 0)
+    : (b.applied_date || b.issued_date || "") > (a.applied_date || a.issued_date || "") ? 1 : -1);
+  const el = document.getElementById("list");
+  if (!rows.length) { el.innerHTML = '<div class="empty">No permits match your filters.</div>'; return; }
+  el.innerHTML = rows.slice(0, 300).map(p => `
+    <div class="card">
+      <h3>${esc(p.description || p.permit_type || "Permit")} </h3>
+      <div class="addr">${esc(p.address || "")}${p.city ? ", " + esc(p.city) : ""}</div>
+      <div class="meta">
+        <span><b>${esc(p.permit_number || "")}</b></span>
+        <span class="val">${money(p.valuation)}</span>
+        <span>Filed ${dstr(p.applied_date)}${p.issued_date ? " · Issued " + dstr(p.issued_date) : ""}</span>
+      </div>
+      <div style="margin-top:6px">
+        ${p.permit_type ? `<span class="tag">${esc(p.permit_type)}</span>` : ""}
+        ${p.work_class ? `<span class="tag">${esc(p.work_class)}</span>` : ""}
+        ${p.source_feed === "wake_trade" ? `<span class="tag trade">trade</span>` : ""}
+        ${p.status ? `<span class="tag">${esc(p.status)}</span>` : ""}
+      </div>
+      <details><summary>Details</summary>
+        <div style="margin-top:6px">
+          ${p.contractor ? `Contractor: <b>${esc(p.contractor)}</b><br>` : ""}
+          ${p.contractor_phone ? `Phone: ${esc(p.contractor_phone)}<br>` : ""}
+          ${p.contractor_license ? `License: ${esc(p.contractor_license)}<br>` : ""}
+          Source: ${esc(p.source_feed || "")}
+        </div>
+      </details>
+    </div>`).join("");
+  if (rows.length > 300) el.innerHTML += `<div class="empty">Showing 300 of ${rows.length} — refine your search.</div>`;
+}
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+["q", "f-type", "f-feed", "f-sort"].forEach(id => document.getElementById(id).addEventListener("input", render));
+load();
+</script>
+</body>
+</html>
