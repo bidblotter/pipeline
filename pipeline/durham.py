@@ -110,10 +110,14 @@ def main():
     inserted = 0
     try:
         if new_snap:
-            # ignore-duplicates keeps first_seen_at for existing rows
-            sb("durham_permit_snapshot", method="POST", body=new_snap,
-               params="?on_conflict=layer,permit_id",
-               prefer="resolution=ignore-duplicates")
+            # ignore-duplicates keeps first_seen_at for existing rows;
+            # chunked so the first big backfill doesn't send one giant POST
+            for i in range(0, len(new_snap), 1000):
+                sb("durham_permit_snapshot", method="POST",
+                   body=new_snap[i:i + 1000],
+                   params="?on_conflict=layer,permit_id",
+                   prefer="resolution=ignore-duplicates")
+            log(f"snapshot: recorded {len(new_snap)} new permits")
         inserted = upsert_permits(new_rows)
         status = "ok" if not failures else "error"
         record_run(SOURCE, status, fetched, inserted,
