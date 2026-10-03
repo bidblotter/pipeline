@@ -199,6 +199,11 @@ def main():
     for name, base in SOURCES.items():
         # One flaky feed must not block the others: watermark and runs are per-source.
         watermark = get_watermark(name)
+        backfill_days = int(os.environ.get("BACKFILL_DAYS", "0") or 0)
+        if backfill_days > 0:
+            watermark = (dt.datetime.now(dt.timezone.utc)
+                         - dt.timedelta(days=backfill_days)).isoformat()
+            log(f"[{name}] backfill override: {backfill_days} days")
         wm_date = watermark[:10]
         log(f"[{name}] watermark: {watermark}")
         rows, fetched = [], 0
