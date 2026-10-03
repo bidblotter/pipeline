@@ -8,6 +8,7 @@ import datetime as dt
 import json
 import os
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from ingest import sb, log  # noqa: E402
@@ -22,8 +23,9 @@ def main():
     since = (dt.datetime.now(dt.timezone.utc)
              - dt.timedelta(days=days)).isoformat()
     rows, offset, page = [], 0, 1000
+    since_q = urllib.parse.quote(since, safe="")
     while True:
-        params = (f"?select={FIELDS}&or=(applied_date.gte.{since},issued_date.gte.{since})"
+        params = (f"?select={FIELDS}&or=(applied_date.gte.{since_q},issued_date.gte.{since_q})"
                   f"&order=applied_date.desc.nullslast&limit={page}&offset={offset}")
         chunk = sb("permits", params=params)
         if not chunk:
