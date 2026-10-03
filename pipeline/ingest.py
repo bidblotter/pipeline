@@ -53,19 +53,21 @@ def arcgis_query(base, where, out_fields, order_field, retries=3):
             "f": "json",
         }
         url = base + "/query?" + urllib.parse.urlencode(params)
+        data = None
         for attempt in range(retries):
             try:
                 req = urllib.request.Request(url, headers=UA)
                 with urllib.request.urlopen(req, timeout=60) as r:
                     data = json.load(r)
+                # ArcGIS can return transient 400s in the body; retry those too
+                if "error" in data:
+                    raise RuntimeError(f"ArcGIS error: {data['error']}")
                 break
             except Exception as e:
                 if attempt == retries - 1:
                     raise
                 log(f"retry {attempt+1} after error: {e}")
                 time.sleep(2 ** attempt)
-        if "error" in data:
-            raise RuntimeError(f"ArcGIS error: {data['error']}")
         feats = data.get("features", [])
         for ft in feats:
             yield ft["attributes"]
@@ -183,6 +185,13 @@ def record_run(source, status, fetched, inserted, error=None):
 def upsert_permits(rows):
     if not rows:
         return 0
+    # A feed can repeat the same permit_number (multi-row permits); Postgres
+    # rejects intra-batch duplicates on upsert ("cannot affect row a second
+    # time"), so dedupe first, keeping the last occurrence.
+    deduped = {}
+    for row in rows:
+        deduped[(row["jurisdiction"], row["permit_number"])] = row
+    rows = list(deduped.values())
     # Supabase REST upsert in chunks of 200
     inserted = 0
     for i in range(0, len(rows), 200):
