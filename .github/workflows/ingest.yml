@@ -4,7 +4,11 @@ on:
   schedule:
     # 10:00 UTC = 6:00 AM EDT / 5:00 AM EST
     - cron: "0 10 * * *"
-  workflow_dispatch: {}  # manual "Run workflow" button
+  workflow_dispatch:
+    inputs:
+      backfill_days:
+        description: "Backfill this many days (0 = use watermarks)"
+        default: "0"
 
 jobs:
   ingest:
@@ -21,4 +25,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BACKFILL_DAYS: ${{ inputs.backfill_days }}
         run: python pipeline/ingest.py
