@@ -18,6 +18,9 @@ on:
       digest_trade:
         description: "Digest trade keyword (e.g. electrical)"
         default: "electrical"
+      digest_days:
+        description: "Digest lookback window in days"
+        default: "1"
 
 jobs:
   ingest:
@@ -52,13 +55,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python pipeline/prospects.py
-      - name: Send test digest
-        if: ${{ inputs.send_digest == 'true' }}
+      - name: Send digest
+        if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
-          python pipeline/digest.py --trade "${{ inputs.digest_trade }}" --days 7 --out /tmp/digest.txt
-          python pipeline/send_digest.py --to "${{ inputs.digest_to }}" --subject "BidBlotter: ${{ inputs.digest_trade }} permits (Actions test)" --body-file /tmp/digest.txt
+          TO="${{ inputs.digest_to }}"
+          TRADE="${{ inputs.digest_trade }}"
+          DAYS="${{ inputs.digest_days }}"
+          [ -z "$TO" ] && TO="bidblotter@gmail.com"
+          [ -z "$TRADE" ] && TRADE="electrical"
+          [ -z "$DAYS" ] && DAYS="1"
+          python pipeline/digest.py --trade "$TRADE" --days "$DAYS" --out /tmp/digest.txt
+          python pipeline/send_digest.py --to "$TO" --subject "BidBlotter morning digest: $TRADE" --body-file /tmp/digest.txt
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
