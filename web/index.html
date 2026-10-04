@@ -41,8 +41,8 @@
   <p>Raleigh-Durham permit intelligence — live data, refreshed daily</p>
 </header>
 <div class="stats">
-  <div class="stat"><b id="s-total">–</b><small>permits (90 days)</small></div>
-  <div class="stat"><b id="s-week">–</b><small>filed in last 7 days</small></div>
+  <div class="stat"><b id="s-total">–</b><small>permits tracked</small></div>
+  <div class="stat"><b id="s-week">–</b><small>new in last 7 days</small></div>
   <div class="stat"><b id="s-val">–</b><small>total valuation</small></div>
   <div class="stat"><b id="s-updated">–</b><small>last updated</small></div>
 </div>
@@ -56,7 +56,7 @@
   </select>
 </div>
 <div id="list"></div>
-<footer>BidBlotter preview — data: Wake County public permit feeds. Not for redistribution.</footer>
+<footer>BidBlotter preview — Wake County filings (90 days) + Durham active permits. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
@@ -104,7 +104,7 @@ function render() {
       <div class="meta">
         <span><b>${esc(p.permit_number || "")}</b></span>
         <span class="val">${money(p.valuation)}</span>
-        <span>Filed ${dstr(p.applied_date)}${p.issued_date ? " · Issued " + dstr(p.issued_date) : ""}</span>
+        <span>${p.applied_date ? "Filed " + dstr(p.applied_date) : "First tracked " + dstr(p.first_seen_at)}${p.issued_date ? " · Issued " + dstr(p.issued_date) : ""}</span>
       </div>
       <div style="margin-top:6px">
         ${p.permit_type ? `<span class="tag">${esc(p.permit_type)}</span>` : ""}
