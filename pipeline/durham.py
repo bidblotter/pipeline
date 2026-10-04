@@ -36,7 +36,10 @@ SOURCE = "durham_active"
 
 def load_snapshot():
     """Return set of (layer, permit_id) already seen."""
-    seen, offset, page = set(), 0, 5000
+    # NOTE: page must not exceed the API's per-response cap (1000); the
+    # loop-break below compares against the requested page size, so a
+    # larger page would silently stop after the first page.
+    seen, offset, page = set(), 0, 1000
     while True:
         rows = sb("durham_permit_snapshot",
                   params=f"?select=layer,permit_id&limit={page}&offset={offset}")
@@ -75,18 +78,28 @@ def norm_durham(layer, a, now_iso):
 
 
 def fix_baseline_dates():
-    """One-time correction: the first Durham snapshot (2026-10-03) stamped
-    every row's applied_date with the ingest time. Those aren't real filing
-    dates, so NULL them. Idempotent — no-op once fixed."""
-    probe = sb("permits", params="?select=permit_number&jurisdiction=eq.durham"
-               "&applied_date=gte.2026-10-03T00:00:00Z"
-               "&applied_date=lt.2026-10-04T00:00:00Z&limit=1")
-    if not probe:
-        return
-    log("baseline correction: NULLing applied_date on first Durham snapshot")
-    sb("permits", method="PATCH", body={"applied_date": None},
-       params="?jurisdiction=eq.durham&applied_date=gte.2026-10-03T00:00:00Z"
-              "&applied_date=lt.2026-10-04T00:00:00Z")
+    """One-time correction: the first Durham snapshot (2026-10-03) has no
+    real filing dates, and a pagination bug re-stamped applied_date on
+    those rows during the next runs. NULL applied_date for every Durham
+    row first seen before 2026-10-04 (identifies the baseline batch via
+    first_seen_at, which upserts never overwrite). Loops because the API
+    caps mutations at ~1000 rows per request. Idempotent."""
+    n = 0
+    while True:
+        probe = sb("permits", params="?select=permit_number"
+                   "&jurisdiction=eq.durham"
+                   "&first_seen_at=lt.2026-10-04T00:00:00Z"
+                   "&applied_date=not.is.null&limit=1")
+        if not probe:
+            break
+        n += 1
+        log(f"baseline correction: NULLing applied_date batch #{n}")
+        sb("permits", method="PATCH", body={"applied_date": None},
+           params="?jurisdiction=eq.durham"
+                  "&first_seen_at=lt.2026-10-04T00:00:00Z"
+                  "&applied_date=not.is.null")
+    if n:
+        log(f"baseline correction done: {n} batches")
 
 
 def main():
