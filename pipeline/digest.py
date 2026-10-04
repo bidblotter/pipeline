@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Build a scannable morning digest for one trade from web/data/permits.json.
 
-Usage:
-  python pipeline/digest.py --trade electrical --days 1 --out /tmp/digest.txt
+Two sections:
+  NEW SINCE YESTERDAY — permits first seen by BidBlotter in the last 24h
+    (discovery date, not filing date: the county feed lags ~3 days, so
+    "filed yesterday" would usually be empty).
+  THIS WEEK — permits filed in the last --days (default 7), the running look.
 
-Matches the trade keyword (case-insensitive) against permit_type and keeps
-permits with applied_date inside the window. Writes the digest to --out and
-prints a "SUBJECT: ..." line for the mail step to use.
+Usage:
+  python pipeline/digest.py --trade electrical --days 7 --out /tmp/digest.txt
+
+Writes the digest to --out and prints a "SUBJECT: ..." line for the mail step.
 """
 import argparse
 import datetime as dt
@@ -15,6 +19,10 @@ import os
 
 SITE = "https://bidblotter.github.io/pipeline/"
 LIST_CAP = 25
+# The digest product went live 2026-10-04; rows first seen before that are the
+# initial backfill, not "new". (Without this guard the backfill batch would
+# flood the NEW section once.)
+LIVE_DATE = "2026-10-04T00:00:00+00:00"
 
 
 def money(n):
@@ -33,7 +41,6 @@ def fdate(s):
 
 
 def entry(p):
-    """One compact permit block."""
     lines = []
     addr = f"{p.get('address', '')}, {p.get('city', '')}".strip(" ,")
     lines.append(f"  {addr}")
@@ -52,7 +59,7 @@ def entry(p):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--trade", required=True)
-    ap.add_argument("--days", type=int, default=1)
+    ap.add_argument("--days", type=int, default=7)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -61,41 +68,55 @@ def main():
     with open(data_path) as f:
         permits = json.load(f)["permits"]
 
-    cutoff = (dt.datetime.now(dt.timezone.utc)
-              - dt.timedelta(days=args.days)).isoformat()
+    now = dt.datetime.now(dt.timezone.utc)
+    day_ago = (now - dt.timedelta(hours=24)).isoformat()
+    week_ago = (now - dt.timedelta(days=args.days)).isoformat()
     kw = args.trade.lower()
-    rows = [p for p in permits
-            if kw in (p.get("permit_type") or "").lower()
-            and (p.get("applied_date") or "") >= cutoff]
-    rows.sort(key=lambda p: p.get("applied_date") or "", reverse=True)
-    open_rows = [p for p in rows if not (p.get("contractor") or "").strip()]
-
     trade = args.trade.title()
-    day_word = "today" if args.days == 1 else f"in the last {args.days} days"
+
+    def matches(p):
+        return (kw in (p.get("permit_type") or "").lower())
+
+    new_rows = sorted(
+        [p for p in permits
+         if matches(p)
+         and (p.get("first_seen_at") or "") >= day_ago
+         and (p.get("first_seen_at") or "") >= LIVE_DATE],
+        key=lambda p: p.get("first_seen_at") or "", reverse=True)
+    week_rows = sorted(
+        [p for p in permits
+         if matches(p)
+         and (p.get("applied_date") or "") >= week_ago
+         and p not in new_rows],
+        key=lambda p: p.get("applied_date") or "", reverse=True)
+
     L = []
-    L.append(f"{len(rows)} new {trade.lower()} permits {day_word} "
-             f"(Raleigh-Durham)")
+    L.append(f"{trade} permits — Raleigh-Durham")
+    L.append(f"{len(new_rows)} new since yesterday · "
+             f"{len(new_rows) + len(week_rows)} filed in the last "
+             f"{args.days} days")
     L.append("")
-    if open_rows:
-        L.append(f"OPEN OPPORTUNITIES — {len(open_rows)} with no contractor "
-                 f"listed yet:")
+    if new_rows:
+        L.append(f"NEW SINCE YESTERDAY ({len(new_rows)}):")
         L.append("")
-        for p in open_rows[:10]:
+        for p in new_rows[:LIST_CAP]:
             L.append(entry(p))
             L.append("")
-        if len(open_rows) > 10:
-            L.append(f"  ...and {len(open_rows) - 10} more open opportunities.")
+    else:
+        L.append("No new filings published since yesterday.")
+        L.append("")
+    if week_rows:
+        L.append(f"THIS WEEK ({len(week_rows)} more):")
+        L.append("")
+        shown = week_rows[:max(0, LIST_CAP - len(new_rows))]
+        for p in shown:
+            L.append(entry(p))
             L.append("")
-    shown = rows[:LIST_CAP]
-    L.append(f"ALL {trade.upper()} FILINGS ({len(rows)}):")
-    L.append("")
-    for p in shown:
-        L.append(entry(p))
-        L.append("")
-    if len(rows) > LIST_CAP:
-        L.append(f"  ...and {len(rows) - LIST_CAP} more. Browse them all:")
-        L.append(f"  {SITE}")
-        L.append("")
+        rest = len(week_rows) - len(shown)
+        if rest > 0:
+            L.append(f"  ...and {rest} more. Browse them all:")
+            L.append(f"  {SITE}?q={kw}&days={args.days}")
+            L.append("")
     L.append("---")
     L.append("BidBlotter — Raleigh-Durham permit intelligence. "
              "Public records, refreshed daily.")
@@ -105,10 +126,13 @@ def main():
     if args.out:
         with open(args.out, "w") as f:
             f.write(text)
-    n = len(rows)
-    plural = "" if n == 1 else "s"
-    print(f"SUBJECT: {n} new {trade.lower()} permit{plural} {day_word} "
-          f"— BidBlotter")
+    n, w = len(new_rows), len(week_rows)
+    if n:
+        subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — BidBlotter"
+    else:
+        subject = (f"{w} {kw} permits this week — BidBlotter"
+                   if w else f"No new {kw} permits — BidBlotter")
+    print(f"SUBJECT: {subject}")
 
 
 if __name__ == "__main__":
