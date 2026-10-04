@@ -27,9 +27,12 @@ def main():
     while True:
         # Wake rows are date-windowed; Durham is an active-permits snapshot
         # with no published filing dates, so include all durham_active rows.
+        # Ordering MUST be total: 23k Durham rows share NULL applied_date and
+        # offset pagination over tied rows returns dupes and drops rows.
         params = (f"?select={FIELDS}&or=(applied_date.gte.{since_q},"
                   f"issued_date.gte.{since_q},source_feed.eq.durham_active)"
-                  f"&order=applied_date.desc.nullslast&limit={page}&offset={offset}")
+                  f"&order=applied_date.desc.nullslast,source_feed.asc,"
+                  f"permit_number.asc&limit={page}&offset={offset}")
         chunk = sb("permits", params=params)
         if not chunk:
             break
