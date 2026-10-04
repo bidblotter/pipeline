@@ -9,6 +9,15 @@ on:
       backfill_days:
         description: "Backfill this many days (0 = use watermarks)"
         default: "0"
+      send_digest:
+        description: "Send test digest email after export (true/false)"
+        default: "false"
+      digest_to:
+        description: "Digest recipient email"
+        default: "bidblotter@gmail.com"
+      digest_trade:
+        description: "Digest trade keyword (e.g. electrical)"
+        default: "electrical"
 
 jobs:
   ingest:
@@ -43,6 +52,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python pipeline/prospects.py
+      - name: Send test digest
+        if: ${{ inputs.send_digest == 'true' }}
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          python pipeline/digest.py --trade "${{ inputs.digest_trade }}" --days 7 --out /tmp/digest.txt
+          python pipeline/send_digest.py --to "${{ inputs.digest_to }}" --subject "BidBlotter: ${{ inputs.digest_trade }} permits (Actions test)" --body-file /tmp/digest.txt
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
