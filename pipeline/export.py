@@ -15,7 +15,7 @@ from ingest import sb, log  # noqa: E402
 
 FIELDS = ("permit_number,permit_type,work_class,description,status,"
           "applied_date,issued_date,address,city,valuation,contractor,"
-          "contractor_phone,contractor_license,source_feed")
+          "contractor_phone,contractor_license,source_feed,first_seen_at")
 
 
 def main():
@@ -25,7 +25,10 @@ def main():
     rows, offset, page = [], 0, 1000
     since_q = urllib.parse.quote(since, safe="")
     while True:
-        params = (f"?select={FIELDS}&or=(applied_date.gte.{since_q},issued_date.gte.{since_q})"
+        # Wake rows are date-windowed; Durham is an active-permits snapshot
+        # with no published filing dates, so include all durham_active rows.
+        params = (f"?select={FIELDS}&or=(applied_date.gte.{since_q},"
+                  f"issued_date.gte.{since_q},source_feed.eq.durham_active)"
                   f"&order=applied_date.desc.nullslast&limit={page}&offset={offset}")
         chunk = sb("permits", params=params)
         if not chunk:
