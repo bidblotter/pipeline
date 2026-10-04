@@ -29,11 +29,23 @@
   #su-msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
   #su-msg.ok { color: #7ce3a5; }
   #su-msg.err { color: #ff9d9d; }
-  .filters { background: #fff; margin: 0 16px 12px; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: flex; gap: 8px; flex-wrap: wrap; }
-  .filters input, .filters select { padding: 8px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: 14px; }
-  .filters input[type=text] { flex: 2; min-width: 160px; }
+  .filters { background: #fff; margin: 0 16px 12px; padding: 14px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .filters input[type=text] { width: 100%; padding: 9px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
+  .fgroup { margin-bottom: 12px; }
+  .fgroup:last-child { margin-bottom: 2px; }
+  .flabel { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: #889; margin-bottom: 6px; }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fbtn { padding: 7px 13px; border: 1px solid #c8d2dc; background: #fff; border-radius: 20px; font-size: 13px; cursor: pointer; color: #1c2733; font-family: inherit; }
+  .fbtn:hover { border-color: #14324a; }
+  .fbtn.active { background: #14324a; border-color: #14324a; color: #fff; font-weight: 600; }
+  .frow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
+  @media (max-width: 640px) { .frow { grid-template-columns: 1fr; } }
   #list { padding: 0 16px 40px; display: grid; gap: 10px; }
-  .card { background: #fff; border-radius: 8px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  @media (min-width: 920px) {
+    .filters, #list { max-width: 880px; margin-left: auto; margin-right: auto; }
+    #list { padding-left: 0; padding-right: 0; }
+  }
+  .card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
   .card h3 { font-size: 15px; margin-bottom: 4px; }
   .card .addr { color: #445; font-size: 13px; margin-bottom: 8px; }
   .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: #445; }
@@ -80,44 +92,115 @@
 </div>
 <div class="filters">
   <input type="text" id="q" placeholder="Search address, contractor, description, permit #…">
-  <select id="f-type"><option value="">All types</option></select>
-  <select id="f-feed"><option value="">All feeds</option><option value="wake_building">Wake building</option><option value="wake_trade">Wake trade</option><option value="durham_active">Durham</option></select>
-  <select id="f-days">
-    <option value="7" selected>Last 7 days</option>
-    <option value="30">Last 30 days</option>
-    <option value="">All time</option>
-  </select>
-  <select id="f-sort">
-    <option value="new">Newest first</option>
-    <option value="val">Highest valuation</option>
-  </select>
+  <div class="fgroup">
+    <div class="flabel">Trade</div>
+    <div class="btn-group" id="g-type" data-key="type"></div>
+  </div>
+  <div class="frow">
+    <div class="fgroup">
+      <div class="flabel">Source</div>
+      <div class="btn-group" id="g-feed" data-key="feed"></div>
+    </div>
+    <div class="fgroup">
+      <div class="flabel">When</div>
+      <div class="btn-group" id="g-days" data-key="days"></div>
+    </div>
+    <div class="fgroup">
+      <div class="flabel">Sort</div>
+      <div class="btn-group" id="g-sort" data-key="sort"></div>
+    </div>
+  </div>
 </div>
 <div id="list"></div>
-<footer>BidBlotter preview — Wake County filings (90 days) + Durham active permits. Public records, refreshed daily.</footer>
+<footer>BidBlotter preview — recent Wake County filings + Durham active permits. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
+const state = { q: "", type: "", feed: "", days: "7", sort: "new" };
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
 const dstr = s => s ? s.slice(0, 10) : "–";
 const pdate = p => p.applied_date || p.first_seen_at || "";
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+// ---- Trade taxonomy: raw feed labels -> friendly buckets ----
+const TRADE_BUCKETS = [
+  { id: "", label: "All trades", types: null },
+  { id: "electrical", label: "Electrical", types: ["BI_ELEC", "DSINSP - Electrical (Non-Residential)", "DSINSP - Electrical (Residential)", "DSINSP - Online Only Electrical (Non-Residential)", "DSINSP - Online Only Electrical (Residential)"] },
+  { id: "plumbing", label: "Plumbing", types: ["BI_PLUM", "DSINSP - Plumbing (Non-Residential)", "DSINSP - Plumbing (Residential)", "DSINSP - Online Only Plumbing (Non-Residential)", "DSINSP - Online Only Plumbing (Residential)"] },
+  { id: "mechanical", label: "HVAC / Mechanical", types: ["BI_MEC", "DSINSP - Mechanical (Non-Residential)", "DSINSP - Mechanical (Residential)", "DSINSP - Online Only Mechanical (Non-Residential)", "DSINSP - Online Only Mechanical (Residential)"] },
+  { id: "building", label: "Building", types: ["BI_BLD", "Commercial Building", "Residential Building", "Residential Accessory Building Structure", "Manufactured Home Permit"] },
+  { id: "demolition", label: "Demolition", types: ["Demolition Permit"] },
+  { id: "fire", label: "Fire protection", types: ["FIRE - Fire Protection"] },
+  { id: "sitework", label: "Site work", types: ["DSENG - Right of Way", "ENG - Floodplain", "ENG - Land Disturbance (Grading)"] },
+];
+const TYPE_TO_BUCKET = {};
+TRADE_BUCKETS.forEach(b => (b.types || []).forEach(t => { TYPE_TO_BUCKET[t] = b.id; }));
+const bucketOf = t => TYPE_TO_BUCKET[t || ""] || "";
+
+const FEED_OPTS = [
+  { id: "", label: "All sources" },
+  { id: "wake_building", label: "Wake building" },
+  { id: "wake_trade", label: "Wake trade" },
+  { id: "durham_active", label: "Durham" },
+];
+const DAYS_OPTS = [
+  { id: "7", label: "Last 7 days" },
+  { id: "30", label: "Last 30 days" },
+  { id: "", label: "All time" },
+];
+const SORT_OPTS = [
+  { id: "new", label: "Newest first" },
+  { id: "val", label: "Highest valuation" },
+];
+
+// ---- Button groups ----
+function buildGroup(elId, options, key) {
+  const el = document.getElementById(elId);
+  el.innerHTML = "";
+  options.forEach(o => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "fbtn";
+    b.textContent = o.label;
+    b.dataset.value = o.id;
+    b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => { state[key] = o.id; syncGroups(); render(); });
+    el.appendChild(b);
+  });
+}
+function syncGroups() {
+  document.querySelectorAll(".btn-group").forEach(g => {
+    const key = g.dataset.key;
+    g.querySelectorAll("button").forEach(b => {
+      const on = b.dataset.value === state[key];
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  });
+}
+
 // ---- URL-driven filters (deep links, e.g. ?q=electrical&days=7) ----
 function readURL() {
   const u = new URLSearchParams(location.search);
-  if (u.get("q")) document.getElementById("q").value = u.get("q");
-  if (u.get("type")) document.getElementById("f-type").value = u.get("type");
-  if (u.get("feed")) document.getElementById("f-feed").value = u.get("feed");
-  if (u.get("days") !== null) document.getElementById("f-days").value = u.get("days");
-  if (u.get("sort")) document.getElementById("f-sort").value = u.get("sort");
+  state.q = u.get("q") || "";
+  document.getElementById("q").value = state.q;
+  const t = u.get("type") || "";
+  state.type = TRADE_BUCKETS.some(b => b.id === t) ? t : bucketOf(t);
+  const f = u.get("feed") || "";
+  state.feed = FEED_OPTS.some(o => o.id === f) ? f : "";
+  const d = u.get("days");
+  state.days = (d === null ? "7" : d);
+  if (!DAYS_OPTS.some(o => o.id === state.days)) state.days = "7";
+  const s = u.get("sort") || "new";
+  state.sort = SORT_OPTS.some(o => o.id === s) ? s : "new";
+  syncGroups();
 }
 function writeURL() {
   const u = new URLSearchParams();
-  const v = id => document.getElementById(id).value;
-  if (v("q")) u.set("q", v("q"));
-  if (v("f-type")) u.set("type", v("f-type"));
-  if (v("f-feed")) u.set("feed", v("f-feed"));
-  if (v("f-days")) u.set("days", v("f-days"));
-  if (v("f-sort") !== "new") u.set("sort", v("f-sort"));
+  if (state.q) u.set("q", state.q);
+  if (state.type) u.set("type", state.type);
+  if (state.feed) u.set("feed", state.feed);
+  if (state.days) u.set("days", state.days);
+  if (state.sort !== "new") u.set("sort", state.sort);
   history.replaceState(null, "", location.pathname + (u.toString() ? "?" + u : ""));
 }
 
@@ -132,9 +215,6 @@ async function load() {
   const tot = permits.reduce((s, p) => s + (Number(p.valuation) || 0), 0);
   document.getElementById("s-val").textContent = "$" + (tot / 1e6).toFixed(1) + "M";
   document.getElementById("s-updated").textContent = (data.generated_at || "").slice(0, 10);
-  const types = [...new Set(permits.map(p => p.permit_type).filter(Boolean))].sort();
-  const sel = document.getElementById("f-type");
-  types.forEach(t => { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); });
   readURL();
   render();
 }
@@ -143,23 +223,19 @@ function tag(t, cls, q) {
 }
 function render() {
   writeURL();
-  const q = document.getElementById("q").value.toLowerCase();
-  const ft = document.getElementById("f-type").value;
-  const ff = document.getElementById("f-feed").value;
-  const fd = document.getElementById("f-days").value;
-  const sort = document.getElementById("f-sort").value;
-  const since = fd ? Date.now() - Number(fd) * 864e5 : 0;
+  const q = state.q.toLowerCase();
+  const since = state.days ? Date.now() - Number(state.days) * 864e5 : 0;
   let rows = permits.filter(p => {
-    if (ft && p.permit_type !== ft) return false;
-    if (ff && p.source_feed !== ff) return false;
+    if (state.type && bucketOf(p.permit_type) !== state.type) return false;
+    if (state.feed && p.source_feed !== state.feed) return false;
     if (since && new Date(pdate(p) || 0) < since) return false;
     if (q) {
-      const hay = [p.address, p.city, p.contractor, p.description, p.permit_number].join(" ").toLowerCase();
+      const hay = [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
   });
-  rows.sort((a, b) => sort === "val"
+  rows.sort((a, b) => state.sort === "val"
     ? (Number(b.valuation) || 0) - (Number(a.valuation) || 0)
     : (pdate(b) > pdate(a) ? 1 : -1));
   const el = document.getElementById("list");
@@ -191,13 +267,27 @@ function render() {
     </div>`).join("");
   if (rows.length > 300) el.innerHTML += `<div class="empty">Showing 300 of ${rows.length} — refine your search.</div>`;
   el.querySelectorAll(".tag").forEach(t => t.addEventListener("click", () => {
-    document.getElementById("q").value = t.dataset.q;
-    document.getElementById("f-type").value = "";
+    const qv = t.dataset.q;
+    const b = bucketOf(qv);
+    if (b) {
+      state.type = b;
+      state.q = "";
+      document.getElementById("q").value = "";
+    } else {
+      state.type = "";
+      state.q = qv;
+      document.getElementById("q").value = qv;
+    }
+    syncGroups();
     render();
     document.getElementById("q").scrollIntoView({behavior: "smooth", block: "center"});
   }));
 }
-["q", "f-type", "f-feed", "f-days", "f-sort"].forEach(id => document.getElementById(id).addEventListener("input", render));
+buildGroup("g-type", TRADE_BUCKETS, "type");
+buildGroup("g-feed", FEED_OPTS, "feed");
+buildGroup("g-days", DAYS_OPTS, "days");
+buildGroup("g-sort", SORT_OPTS, "sort");
+document.getElementById("q").addEventListener("input", e => { state.q = e.target.value; render(); });
 
 // ---- Pilot signup form (Supabase waitlist) ----
 const SUPABASE_URL = "https://jxuarfprpsbokyxujdlj.supabase.co";
