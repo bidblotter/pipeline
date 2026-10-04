@@ -19,3 +19,7 @@ create table if not exists durham_permit_snapshot (
 
 create index if not exists durham_snapshot_seen_idx
   on durham_permit_snapshot (last_seen_at desc);
+
+-- Explicit grants: Supabase stops auto-granting table privileges on new
+-- tables 2026-10-30. The pipeline talks to Supabase as service_role.
+grant all on durham_permit_snapshot to service_role;
