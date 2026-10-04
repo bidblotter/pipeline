@@ -9,6 +9,9 @@ Phase 2 follow-up: enrich via the LDO portal
 (https://ldo4.durhamnc.gov/DurhamWeb/Search/ApplicationSearch) for real
 application dates and applicant info. For now, applied_date = first seen
 by BidBlotter, which is the honest "new" signal at daily granularity.
+(The very first snapshot on 2026-10-03 is the exception: those rows get
+applied_date=NULL via fix_baseline_dates() below, since stamping 23k
+baseline rows with one date would fake a "filed" signal.)
 """
 import datetime as dt
 import os
@@ -71,8 +74,24 @@ def norm_durham(layer, a, now_iso):
     }
 
 
+def fix_baseline_dates():
+    """One-time correction: the first Durham snapshot (2026-10-03) stamped
+    every row's applied_date with the ingest time. Those aren't real filing
+    dates, so NULL them. Idempotent — no-op once fixed."""
+    probe = sb("permits", params="?select=permit_number&jurisdiction=eq.durham"
+               "&applied_date=gte.2026-10-03T00:00:00Z"
+               "&applied_date=lt.2026-10-04T00:00:00Z&limit=1")
+    if not probe:
+        return
+    log("baseline correction: NULLing applied_date on first Durham snapshot")
+    sb("permits", method="PATCH", body={"applied_date": None},
+       params="?jurisdiction=eq.durham&applied_date=gte.2026-10-03T00:00:00Z"
+              "&applied_date=lt.2026-10-04T00:00:00Z")
+
+
 def main():
     now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
+    fix_baseline_dates()
     log("loading snapshot")
     seen = load_snapshot()
     log(f"snapshot holds {len(seen)} permits")
