@@ -55,6 +55,16 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python pipeline/prospects.py
+      - name: Inject public keys into site
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$SUPABASE_ANON_KEY" ]; then
+            sed -i "s/PASTE_ANON_KEY_HERE/$SUPABASE_ANON_KEY/g" web/index.html
+            echo "anon key injected"
+          else
+            echo "SUPABASE_ANON_KEY not set — signup form will be inert"
+          fi
       - name: Send digest
         if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
         env:
