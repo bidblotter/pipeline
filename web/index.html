@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BidBlotter — Raleigh-Durham Permit Intel (Preview)</title>
+<meta name="description" content="Search every building and trade permit filed in Raleigh-Durham. Free preview — new filings daily.">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; color: #1c2733; }
@@ -16,6 +17,18 @@
   .stat { background: #fff; border-radius: 8px; padding: 10px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); flex: 1; min-width: 120px; }
   .stat b { font-size: 20px; display: block; }
   .stat small { color: #667; }
+  .signup { background: #14324a; color: #fff; margin: 0 16px 12px; padding: 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .signup h2 { font-size: 16px; margin-bottom: 4px; }
+  .signup h2 span { color: #ffb020; }
+  .signup p { font-size: 13px; opacity: .8; margin-bottom: 10px; }
+  .signup form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .signup input, .signup select { padding: 9px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: 14px; }
+  .signup input[type=email] { flex: 2; min-width: 180px; }
+  .signup button { background: #ffb020; color: #14324a; border: none; border-radius: 6px; padding: 9px 18px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .signup button:hover { background: #ffaa00; }
+  #su-msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
+  #su-msg.ok { color: #7ce3a5; }
+  #su-msg.err { color: #ff9d9d; }
   .filters { background: #fff; margin: 0 16px 12px; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: flex; gap: 8px; flex-wrap: wrap; }
   .filters input, .filters select { padding: 8px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: 14px; }
   .filters input[type=text] { flex: 2; min-width: 160px; }
@@ -25,9 +38,12 @@
   .card .addr { color: #445; font-size: 13px; margin-bottom: 8px; }
   .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: #445; }
   .meta b { color: #1c2733; }
-  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #e8eef4; color: #14324a; margin-right: 6px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #e8eef4; color: #14324a; margin-right: 6px; cursor: pointer; border: none; font-family: inherit; }
+  .tag:hover { background: #d4dcea; }
   .tag.trade { background: #e6f4ea; color: #1a6b3c; }
+  .tag.trade:hover { background: #d2e8d8; }
   .tag.durham { background: #e8e4f4; color: #4a2a8a; }
+  .tag.durham:hover { background: #d8d0ec; }
   .val { color: #0a7a3d; font-weight: 700; }
   details { margin-top: 8px; font-size: 13px; color: #445; }
   details summary { cursor: pointer; color: #1463a0; }
@@ -46,10 +62,31 @@
   <div class="stat"><b id="s-val">–</b><small>total valuation</small></div>
   <div class="stat"><b id="s-updated">–</b><small>last updated</small></div>
 </div>
+<div class="signup">
+  <h2>Get the <span>morning digest</span></h2>
+  <p>New permits in your trade, in your inbox every morning. Free during the pilot.</p>
+  <form id="su-form">
+    <input type="email" id="su-email" placeholder="you@company.com" required>
+    <select id="su-trade">
+      <option value="electrical">Electrical</option>
+      <option value="plumbing">Plumbing</option>
+      <option value="mechanical">HVAC / Mechanical</option>
+      <option value="roofing">Roofing</option>
+      <option value="building">General building</option>
+    </select>
+    <button type="submit">Notify me</button>
+  </form>
+  <p id="su-msg"></p>
+</div>
 <div class="filters">
   <input type="text" id="q" placeholder="Search address, contractor, description, permit #…">
   <select id="f-type"><option value="">All types</option></select>
   <select id="f-feed"><option value="">All feeds</option><option value="wake_building">Wake building</option><option value="wake_trade">Wake trade</option><option value="durham_active">Durham</option></select>
+  <select id="f-days">
+    <option value="7" selected>Last 7 days</option>
+    <option value="30">Last 30 days</option>
+    <option value="">All time</option>
+  </select>
   <select id="f-sort">
     <option value="new">Newest first</option>
     <option value="val">Highest valuation</option>
@@ -61,6 +98,28 @@
 let permits = [];
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
 const dstr = s => s ? s.slice(0, 10) : "–";
+const pdate = p => p.applied_date || p.first_seen_at || "";
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// ---- URL-driven filters (deep links, e.g. ?q=electrical&days=7) ----
+function readURL() {
+  const u = new URLSearchParams(location.search);
+  if (u.get("q")) document.getElementById("q").value = u.get("q");
+  if (u.get("type")) document.getElementById("f-type").value = u.get("type");
+  if (u.get("feed")) document.getElementById("f-feed").value = u.get("feed");
+  if (u.get("days") !== null) document.getElementById("f-days").value = u.get("days");
+  if (u.get("sort")) document.getElementById("f-sort").value = u.get("sort");
+}
+function writeURL() {
+  const u = new URLSearchParams();
+  const v = id => document.getElementById(id).value;
+  if (v("q")) u.set("q", v("q"));
+  if (v("f-type")) u.set("type", v("f-type"));
+  if (v("f-feed")) u.set("feed", v("f-feed"));
+  if (v("f-days")) u.set("days", v("f-days"));
+  if (v("f-sort") !== "new") u.set("sort", v("f-sort"));
+  history.replaceState(null, "", location.pathname + (u.toString() ? "?" + u : ""));
+}
 
 async function load() {
   const res = await fetch("data/permits.json");
@@ -76,16 +135,24 @@ async function load() {
   const types = [...new Set(permits.map(p => p.permit_type).filter(Boolean))].sort();
   const sel = document.getElementById("f-type");
   types.forEach(t => { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); });
+  readURL();
   render();
 }
+function tag(t, cls, q) {
+  return `<button class="tag${cls ? " " + cls : ""}" data-q="${esc(q)}">${esc(t)}</button>`;
+}
 function render() {
+  writeURL();
   const q = document.getElementById("q").value.toLowerCase();
   const ft = document.getElementById("f-type").value;
   const ff = document.getElementById("f-feed").value;
+  const fd = document.getElementById("f-days").value;
   const sort = document.getElementById("f-sort").value;
+  const since = fd ? Date.now() - Number(fd) * 864e5 : 0;
   let rows = permits.filter(p => {
     if (ft && p.permit_type !== ft) return false;
     if (ff && p.source_feed !== ff) return false;
+    if (since && new Date(pdate(p) || 0) < since) return false;
     if (q) {
       const hay = [p.address, p.city, p.contractor, p.description, p.permit_number].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
@@ -94,7 +161,7 @@ function render() {
   });
   rows.sort((a, b) => sort === "val"
     ? (Number(b.valuation) || 0) - (Number(a.valuation) || 0)
-    : (b.applied_date || b.issued_date || "") > (a.applied_date || a.issued_date || "") ? 1 : -1);
+    : (pdate(b) > pdate(a) ? 1 : -1));
   const el = document.getElementById("list");
   if (!rows.length) { el.innerHTML = '<div class="empty">No permits match your filters.</div>'; return; }
   el.innerHTML = rows.slice(0, 300).map(p => `
@@ -107,11 +174,11 @@ function render() {
         <span>${p.applied_date ? "Filed " + dstr(p.applied_date) : "First tracked " + dstr(p.first_seen_at)}${p.issued_date ? " · Issued " + dstr(p.issued_date) : ""}</span>
       </div>
       <div style="margin-top:6px">
-        ${p.permit_type ? `<span class="tag">${esc(p.permit_type)}</span>` : ""}
-        ${p.work_class ? `<span class="tag">${esc(p.work_class)}</span>` : ""}
-        ${p.source_feed === "wake_trade" ? `<span class="tag trade">trade</span>` : ""}
-        ${p.source_feed === "durham_active" ? `<span class="tag durham">durham</span>` : ""}
-        ${p.status ? `<span class="tag">${esc(p.status)}</span>` : ""}
+        ${p.permit_type ? tag(p.permit_type, "", p.permit_type) : ""}
+        ${p.work_class ? tag(p.work_class, "", p.work_class) : ""}
+        ${p.source_feed === "wake_trade" ? tag("trade", "trade", p.permit_type || "") : ""}
+        ${p.source_feed === "durham_active" ? tag("durham", "durham", "") : ""}
+        ${p.status ? tag(p.status, "", p.status) : ""}
       </div>
       <details><summary>Details</summary>
         <div style="margin-top:6px">
@@ -123,9 +190,51 @@ function render() {
       </details>
     </div>`).join("");
   if (rows.length > 300) el.innerHTML += `<div class="empty">Showing 300 of ${rows.length} — refine your search.</div>`;
+  el.querySelectorAll(".tag").forEach(t => t.addEventListener("click", () => {
+    document.getElementById("q").value = t.dataset.q;
+    document.getElementById("f-type").value = "";
+    render();
+    document.getElementById("q").scrollIntoView({behavior: "smooth", block: "center"});
+  }));
 }
-const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-["q", "f-type", "f-feed", "f-sort"].forEach(id => document.getElementById(id).addEventListener("input", render));
+["q", "f-type", "f-feed", "f-days", "f-sort"].forEach(id => document.getElementById(id).addEventListener("input", render));
+
+// ---- Pilot signup form (Supabase waitlist) ----
+const SUPABASE_URL = "https://jxuarfprpsbokyxujdlj.supabase.co";
+const SUPABASE_ANON_KEY = "PASTE_ANON_KEY_HERE";
+document.getElementById("su-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const msg = document.getElementById("su-msg");
+  const email = document.getElementById("su-email").value.trim();
+  const trade = document.getElementById("su-trade").value;
+  msg.className = ""; msg.textContent = "Signing you up…";
+  try {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/waitlist", {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({email, trade})
+    });
+    if (res.ok) {
+      msg.className = "ok";
+      msg.textContent = "You're in! Watch your inbox for the morning digest.";
+      document.getElementById("su-email").value = "";
+    } else {
+      const t = await res.text();
+      msg.className = "err";
+      msg.textContent = t.includes("duplicate") || res.status === 409
+        ? "That email is already signed up for this trade."
+        : "Something went wrong — please try again.";
+    }
+  } catch (err) {
+    msg.className = "err";
+    msg.textContent = "Something went wrong — please try again.";
+  }
+});
 load();
 </script>
 </body>
