@@ -40,3 +40,8 @@ create table if not exists ingest_runs (
   records_inserted int not null default 0,
   error text
 );
+
+-- Explicit grants: Supabase stops auto-granting table privileges on new
+-- tables 2026-10-30. The pipeline talks to Supabase as service_role.
+grant all on permits to service_role;
+grant all on ingest_runs to service_role;
