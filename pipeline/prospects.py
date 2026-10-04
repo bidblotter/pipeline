@@ -11,6 +11,7 @@ import datetime as dt
 import os
 import re
 import sys
+import urllib.parse
 from collections import Counter, defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
@@ -27,12 +28,13 @@ def digits(s):
 def main():
     since = (dt.datetime.now(dt.timezone.utc)
              - dt.timedelta(days=DAYS)).isoformat()
+    since_q = urllib.parse.quote(since, safe="")
     fields = ("contractor,contractor_phone,contractor_email,"
               "contractor_license,permit_type")
     rows, offset, page = [], 0, 1000
     while True:
-        params = (f"?select={fields}&or=(applied_date.gte.{since},"
-                  f"first_seen_at.gte.{since})"
+        params = (f"?select={fields}&or=(applied_date.gte.{since_q},"
+                  f"first_seen_at.gte.{since_q})"
                   f"&limit={page}&offset={offset}")
         chunk = sb("permits", params=params)
         if not chunk:
