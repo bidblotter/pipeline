@@ -34,6 +34,19 @@ SOURCES = {
 PAGE = 1000
 UA = {"User-Agent": "BidBlotter-ingest/1.0"}
 
+# Trailing window (days) subtracted from the per-source watermark before
+# querying the county feeds. The feeds publish records ~2-4 days AFTER the
+# date stored in the record itself (measured 2026-10-04: the trade feed's max
+# issueddate trailed real time by 3 days, building ~2 days). A strict
+# "since last run" query would permanently miss those late-published records
+# and the DB would freeze at the last backfill — so the query always trails
+# the watermark by this buffer. Overlap is harmless: upserts dedupe on
+# (jurisdiction, permit_number), and first_seen_at is not in the upsert
+# payload, so the digest's "new since yesterday" keeps reflecting true
+# first discovery. A failed/skipped run still backfills, because the
+# watermark only advances on a successful run.
+LAG_BUFFER_DAYS = 7
+
 
 def log(*a):
     print(dt.datetime.now(dt.timezone.utc).strftime("%H:%M:%S"), *a, flush=True)
@@ -214,11 +227,15 @@ def main():
                          - dt.timedelta(days=backfill_days)).isoformat()
             log(f"[{name}] backfill override: {backfill_days} days")
         wm_date = watermark[:10]
-        log(f"[{name}] watermark: {watermark}")
+        # Trail the watermark (see LAG_BUFFER_DAYS): the feeds publish
+        # records days after the record's own date.
+        query_date = (dt.date.fromisoformat(wm_date)
+                      - dt.timedelta(days=LAG_BUFFER_DAYS)).isoformat()
+        log(f"[{name}] watermark: {watermark} (query {DATE_FIELDS[name]} > {query_date})")
         rows, fetched = [], 0
         try:
             date_field = DATE_FIELDS[name]
-            where = f"{date_field} > DATE '{wm_date}'"
+            where = f"{date_field} > DATE '{query_date}'"
             norm = NORMALIZERS[name]
             for attrs in arcgis_query(base, where, OUT_FIELDS[name], date_field):
                 row = norm(attrs)
