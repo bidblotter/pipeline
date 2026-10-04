@@ -2,8 +2,9 @@ name: daily-permit-ingest
 
 on:
   schedule:
-    # 10:00 UTC = 6:00 AM EDT / 5:00 AM EST
-    - cron: "0 10 * * *"
+    # 10:07 UTC = 6:07 AM EDT / 5:07 AM EST
+    # (off the top of the hour: GitHub warns scheduled runs slip at :00)
+    - cron: "7 10 * * *"
   workflow_dispatch:
     inputs:
       backfill_days:
