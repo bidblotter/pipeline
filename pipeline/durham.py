@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BidBlotter Durham ingest — daily diff of the "Active *" ArcGIS datasets.
+"""PermitPicker Durham ingest — daily diff of the "Active *" ArcGIS datasets.
 
 Durham's feeds have no date fields, so "what's new" = Permit_IDs present
 today but absent from yesterday's snapshot (durham_permit_snapshot).
@@ -8,7 +8,7 @@ New permits are normalized into the permits table (jurisdiction='durham').
 Phase 2 follow-up: enrich via the LDO portal
 (https://ldo4.durhamnc.gov/DurhamWeb/Search/ApplicationSearch) for real
 application dates and applicant info. For now, applied_date = first seen
-by BidBlotter, which is the honest "new" signal at daily granularity.
+by PermitPicker, which is the honest "new" signal at daily granularity.
 (The very first snapshot on 2026-10-03 is the exception: those rows get
 applied_date=NULL via fix_baseline_dates() below, since stamping 23k
 baseline rows with one date would fake a "filed" signal.)
@@ -61,7 +61,7 @@ def norm_durham(layer, a, now_iso):
         "work_class": a.get("P_Activity"),
         "description": a.get("P_Descript"),
         "status": a.get("P_Status"),
-        "applied_date": now_iso,   # first seen by BidBlotter (no date in feed)
+        "applied_date": now_iso,   # first seen by PermitPicker (no date in feed)
         "issued_date": None,
         "address": a.get("SiteAdd"),
         "city": "Durham",
