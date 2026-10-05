@@ -57,6 +57,10 @@
   .tag.trade:hover { background: #d2e8d8; }
   .tag.durham { background: #e8e4f4; color: #4a2a8a; }
   .tag.durham:hover { background: #d8d0ec; }
+  .tag.wc { background: #e3ecf8; color: #1a4d8f; }
+  .tag.wc:hover { background: #d1e0f2; }
+  .tag.st { background: #fdf0dd; color: #8a5a13; }
+  .tag.st:hover { background: #f8e3c2; }
   .tag.active { background: #14324a; border-color: #14324a; color: #fff; }
   .val { color: #0a7a3d; font-weight: 700; }
   details { margin-top: 8px; font-size: 13px; color: #445; }
@@ -127,7 +131,13 @@
 <footer>PermitPicker preview — recent Wake County filings + Durham active permits. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
-const state = { q: "", type: "", feed: "", days: "7", sort: "new", workclass: "", status: "" };
+const state = { q: "", type: [], feed: [], days: "7", sort: "new", workclass: [], status: [] };
+// Multi-select applies to tag categories; When and Sort stay single-select.
+const MULTI = { type: true, feed: true, workclass: true, status: true };
+function toggleIn(arr, v) {
+  const i = arr.indexOf(v);
+  if (i >= 0) arr.splice(i, 1); else arr.push(v);
+}
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
 const dstr = s => s ? s.slice(0, 10) : "–";
 const pdate = p => p.applied_date || p.first_seen_at || "";
@@ -209,7 +219,15 @@ function buildGroup(elId, options, key) {
     b.textContent = o.label;
     b.dataset.value = o.id;
     b.setAttribute("aria-pressed", "false");
-    b.addEventListener("click", () => { state[key] = o.id; syncGroups(); render(); });
+    b.addEventListener("click", () => {
+      if (MULTI[key]) {
+        if (o.id === "") state[key] = [];
+        else toggleIn(state[key], o.id);
+      } else {
+        state[key] = o.id;
+      }
+      syncGroups(); render();
+    });
     el.appendChild(b);
   });
 }
@@ -217,7 +235,10 @@ function syncGroups() {
   document.querySelectorAll(".btn-group").forEach(g => {
     const key = g.dataset.key;
     g.querySelectorAll("button").forEach(b => {
-      const on = b.dataset.value === state[key];
+      const v = b.dataset.value;
+      const on = MULTI[key]
+        ? (v === "" ? state[key].length === 0 : state[key].includes(v))
+        : (v === state[key]);
       b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
@@ -229,30 +250,30 @@ function readURL() {
   const u = new URLSearchParams(location.search);
   state.q = u.get("q") || "";
   document.getElementById("q").value = state.q;
-  const t = u.get("type") || "";
-  state.type = TRADE_BUCKETS.some(b => b.id === t) ? t : bucketOf(t);
-  const f = u.get("feed") || "";
-  state.feed = FEED_OPTS.some(o => o.id === f) ? f : "";
+  const t = u.getAll("type");
+  state.type = [...new Set(t.map(v => TRADE_BUCKETS.some(b => b.id === v) ? v : bucketOf(v)).filter(Boolean))];
+  const f = u.getAll("feed");
+  state.feed = [...new Set(f.filter(v => v && FEED_OPTS.some(o => o.id === v)))];
   const d = u.get("days");
   state.days = (d === null ? "7" : d);
   if (!DAYS_OPTS.some(o => o.id === state.days)) state.days = "7";
   const s = u.get("sort") || "new";
   state.sort = SORT_OPTS.some(o => o.id === s) ? s : "new";
-  const wc = u.get("workclass") || "";
-  state.workclass = WC_BUCKETS.some(b => b.id === wc) ? wc : "";
-  const st = u.get("status") || "";
-  state.status = ST_BUCKETS.some(b => b.id === st) ? st : "";
+  const wc = u.getAll("workclass");
+  state.workclass = [...new Set(wc.filter(v => v && WC_BUCKETS.some(b => b.id === v)))];
+  const st = u.getAll("status");
+  state.status = [...new Set(st.filter(v => v && ST_BUCKETS.some(b => b.id === v)))];
   syncGroups();
 }
 function writeURL() {
   const u = new URLSearchParams();
   if (state.q) u.set("q", state.q);
-  if (state.type) u.set("type", state.type);
-  if (state.feed) u.set("feed", state.feed);
+  state.type.forEach(t => u.append("type", t));
+  state.feed.forEach(f => u.append("feed", f));
   if (state.days) u.set("days", state.days);
   if (state.sort !== "new") u.set("sort", state.sort);
-  if (state.workclass) u.set("workclass", state.workclass);
-  if (state.status) u.set("status", state.status);
+  state.workclass.forEach(w => u.append("workclass", w));
+  state.status.forEach(s => u.append("status", s));
   history.replaceState(null, "", location.pathname + (u.toString() ? "?" + u : ""));
 }
 
@@ -277,34 +298,34 @@ function tag(t, cls, q) {
 function tradeTag(p) {
   const bId = bucketOf(p.permit_type);
   const b = bId ? TRADE_BUCKETS.find(x => x.id === bId) : null;
-  if (b) return tag(b.label, "trade" + (state.type === b.id ? " active" : ""), "type:" + b.id);
+  if (b) return tag(b.label, "trade" + (state.type.includes(b.id) ? " active" : ""), "type:" + b.id);
   return p.permit_type ? tag(p.permit_type, "", p.permit_type) : "";
 }
 function wcTag(p) {
   const bId = bucketOfWC(p.work_class);
   const b = bId ? WC_BUCKETS.find(x => x.id === bId) : null;
-  if (b) return tag(b.label, state.workclass === b.id ? "active" : "", "wc:" + b.id);
+  if (b) return tag(b.label, "wc" + (state.workclass.includes(b.id) ? " active" : ""), "wc:" + b.id);
   return p.work_class ? tag(p.work_class, "", p.work_class) : "";
 }
 function stTag(p) {
   const bId = bucketOfST(p.status);
   const b = bId ? ST_BUCKETS.find(x => x.id === bId) : null;
-  if (b) return tag(b.label, state.status === b.id ? "active" : "", "st:" + b.id);
+  if (b) return tag(b.label, "st" + (state.status.includes(b.id) ? " active" : ""), "st:" + b.id);
   return p.status ? tag(p.status, "", p.status) : "";
 }
 function feedTag(p) {
   if (p.source_feed !== "durham_active") return "";
-  return tag("Durham", "durham" + (state.feed === "durham_active" ? " active" : ""), "feed:durham_active");
+  return tag("Durham", "durham" + (state.feed.includes("durham_active") ? " active" : ""), "feed:durham_active");
 }
 function render() {
   writeURL();
   const q = state.q.toLowerCase();
   const since = state.days ? Date.now() - Number(state.days) * 864e5 : 0;
   let rows = permits.filter(p => {
-    if (state.type && bucketOf(p.permit_type) !== state.type) return false;
-    if (state.feed && p.source_feed !== state.feed) return false;
-    if (state.workclass && bucketOfWC(p.work_class) !== state.workclass) return false;
-    if (state.status && bucketOfST(p.status) !== state.status) return false;
+    if (state.type.length && !state.type.includes(bucketOf(p.permit_type))) return false;
+    if (state.feed.length && !state.feed.includes(p.source_feed)) return false;
+    if (state.workclass.length && !state.workclass.includes(bucketOfWC(p.work_class))) return false;
+    if (state.status.length && !state.status.includes(bucketOfST(p.status))) return false;
     if (since && new Date(pdate(p) || 0) < since) return false;
     if (q) {
       const hay = [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
@@ -348,19 +369,19 @@ function render() {
   el.querySelectorAll(".tag").forEach(t => t.addEventListener("click", () => {
     const qv = t.dataset.q;
     if (qv.startsWith("type:")) {
-      state.type = qv.slice(5);
+      toggleIn(state.type, qv.slice(5));
       state.q = "";
       document.getElementById("q").value = "";
     } else if (qv.startsWith("feed:")) {
-      state.feed = qv.slice(5);
+      toggleIn(state.feed, qv.slice(5));
       state.q = "";
       document.getElementById("q").value = "";
     } else if (qv.startsWith("wc:")) {
-      state.workclass = qv.slice(3);
+      toggleIn(state.workclass, qv.slice(3));
     } else if (qv.startsWith("st:")) {
-      state.status = qv.slice(3);
+      toggleIn(state.status, qv.slice(3));
     } else {
-      state.type = "";
+      state.type = [];
       state.q = qv;
       document.getElementById("q").value = qv;
     }
