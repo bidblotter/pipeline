@@ -221,6 +221,13 @@ async function load() {
 function tag(t, cls, q) {
   return `<button class="tag${cls ? " " + cls : ""}" data-q="${esc(q)}">${esc(t)}</button>`;
 }
+// Card trade tag mirrors the filter button: friendly bucket label, activates the bucket.
+function tradeTag(p) {
+  const bId = bucketOf(p.permit_type);
+  const b = bId ? TRADE_BUCKETS.find(x => x.id === bId) : null;
+  if (b) return tag(b.label, "trade", "type:" + b.id);
+  return p.permit_type ? tag(p.permit_type, "", p.permit_type) : "";
+}
 function render() {
   writeURL();
   const q = state.q.toLowerCase();
@@ -250,10 +257,9 @@ function render() {
         <span>${p.applied_date ? "Filed " + dstr(p.applied_date) : "First tracked " + dstr(p.first_seen_at)}${p.issued_date ? " · Issued " + dstr(p.issued_date) : ""}</span>
       </div>
       <div style="margin-top:6px">
-        ${p.permit_type ? tag(p.permit_type, "", p.permit_type) : ""}
+        ${tradeTag(p)}
         ${p.work_class ? tag(p.work_class, "", p.work_class) : ""}
-        ${p.source_feed === "wake_trade" ? tag("trade", "trade", p.permit_type || "") : ""}
-        ${p.source_feed === "durham_active" ? tag("durham", "durham", "") : ""}
+        ${p.source_feed === "durham_active" ? tag("Durham", "durham", "feed:durham_active") : ""}
         ${p.status ? tag(p.status, "", p.status) : ""}
       </div>
       <details><summary>Details</summary>
@@ -261,6 +267,7 @@ function render() {
           ${p.contractor ? `Contractor: <b>${esc(p.contractor)}</b><br>` : ""}
           ${p.contractor_phone ? `Phone: ${esc(p.contractor_phone)}<br>` : ""}
           ${p.contractor_license ? `License: ${esc(p.contractor_license)}<br>` : ""}
+          ${p.permit_type ? `Permit type: ${esc(p.permit_type)}<br>` : ""}
           Source: ${esc(p.source_feed || "")}
         </div>
       </details>
@@ -268,9 +275,12 @@ function render() {
   if (rows.length > 300) el.innerHTML += `<div class="empty">Showing 300 of ${rows.length} — refine your search.</div>`;
   el.querySelectorAll(".tag").forEach(t => t.addEventListener("click", () => {
     const qv = t.dataset.q;
-    const b = bucketOf(qv);
-    if (b) {
-      state.type = b;
+    if (qv.startsWith("type:")) {
+      state.type = qv.slice(5);
+      state.q = "";
+      document.getElementById("q").value = "";
+    } else if (qv.startsWith("feed:")) {
+      state.feed = qv.slice(5);
       state.q = "";
       document.getElementById("q").value = "";
     } else {
