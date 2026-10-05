@@ -22,7 +22,11 @@ LIST_CAP = 25
 # The digest product went live 2026-10-04; rows first seen before that are the
 # initial backfill, not "new". (Without this guard the backfill batch would
 # flood the NEW section once.)
-LIVE_DATE = "2026-10-04T00:00:00+00:00"
+LIVE_DATE = "2026-10-05T04:00:00+00:00"  # raised 2026-10-05: Cary ingest
+# backfill (~3k rows) + Wake 90-day re-backfill (~5.6k recovered rows) all
+# landed with first_seen_at ~= 2026-10-05 02:xx UTC; without this they would
+# flood NEW SINCE YESTERDAY as ~8.7k "new" permits. Genuinely new filings
+# still appear under THIS WEEK.
 
 
 def money(n):
