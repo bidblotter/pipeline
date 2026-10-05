@@ -1,4 +1,4 @@
-# BidBlotter pipeline
+# PermitPicker pipeline
 
 Daily ingest of Wake County (Raleigh/Cary/Apex/Morrisville/…) permit feeds into Supabase.
 Runs on GitHub Actions — no server, no AI quota involved.
