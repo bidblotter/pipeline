@@ -27,6 +27,8 @@ def main():
         sys.exit("RESEND_API_KEY is not set")
     with open(args.body_file) as f:
         text = f.read()
+    print(f"send_digest: to={args.to} subject={args.subject[:60]!r} "
+          f"body_bytes={len(text)}", flush=True)
 
     payload = {
         "from": args.from_addr,
@@ -45,8 +47,14 @@ def main():
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        print("resend:", resp.status, resp.read().decode()[:200])
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            print("resend:", resp.status, resp.read().decode()[:500])
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")[:1000]
+        print(f"resend HTTPError: {e.code} {e.reason} :: {body}",
+              file=sys.stderr, flush=True)
+        raise SystemExit(f"Resend send failed: HTTP {e.code}")
 
 
 if __name__ == "__main__":
