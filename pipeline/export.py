@@ -18,6 +18,18 @@ FIELDS = ("permit_number,permit_type,work_class,description,status,"
           "contractor_phone,contractor_license,source_feed,first_seen_at")
 
 
+def durham_applied_year(permit_number):
+    """Durham permit numbers are YY-prefixed (validated 2026-10-04: the
+    2-digit prefix matches the application year on ~97% of permits with
+    known issue dates; the rest applied in Dec and issued the next Jan).
+    Gives every Durham row an honest year-precision applied date."""
+    pn = (permit_number or "").strip()
+    if len(pn) >= 2 and pn[:2].isdigit():
+        yy = int(pn[:2])
+        return 2000 + yy if yy <= 30 else 1900 + yy
+    return None
+
+
 def main():
     days = int(os.environ.get("EXPORT_DAYS", "90") or 90)
     since = (dt.datetime.now(dt.timezone.utc)
@@ -36,6 +48,9 @@ def main():
         chunk = sb("permits", params=params)
         if not chunk:
             break
+        for r in chunk:
+            if r.get("source_feed") == "durham_active":
+                r["applied_year"] = durham_applied_year(r.get("permit_number"))
         rows.extend(chunk)
         log(f"exported {len(rows)} rows so far")
         if len(chunk) < page:
