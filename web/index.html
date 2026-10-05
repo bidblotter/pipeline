@@ -39,7 +39,8 @@
   .fbtn:hover { border-color: #14324a; }
   .fbtn.active { background: #14324a; border-color: #14324a; color: #fff; font-weight: 600; }
   .frow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
-  @media (max-width: 640px) { .frow { grid-template-columns: 1fr; } }
+  .frow.two { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px) { .frow, .frow.two { grid-template-columns: 1fr; } }
   #list { padding: 0 16px 40px; display: grid; gap: 10px; }
   @media (min-width: 920px) {
     .filters, #list { max-width: 880px; margin-left: auto; margin-right: auto; }
@@ -56,6 +57,7 @@
   .tag.trade:hover { background: #d2e8d8; }
   .tag.durham { background: #e8e4f4; color: #4a2a8a; }
   .tag.durham:hover { background: #d8d0ec; }
+  .tag.active { background: #14324a; border-color: #14324a; color: #fff; }
   .val { color: #0a7a3d; font-weight: 700; }
   details { margin-top: 8px; font-size: 13px; color: #445; }
   details summary { cursor: pointer; color: #1463a0; }
@@ -110,12 +112,22 @@
       <div class="btn-group" id="g-sort" data-key="sort"></div>
     </div>
   </div>
+  <div class="frow two">
+    <div class="fgroup">
+      <div class="flabel">Work class</div>
+      <div class="btn-group" id="g-workclass" data-key="workclass"></div>
+    </div>
+    <div class="fgroup">
+      <div class="flabel">Status</div>
+      <div class="btn-group" id="g-status" data-key="status"></div>
+    </div>
+  </div>
 </div>
 <div id="list"></div>
 <footer>PermitPicker preview — recent Wake County filings + Durham active permits. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
-const state = { q: "", type: "", feed: "", days: "7", sort: "new" };
+const state = { q: "", type: "", feed: "", days: "7", sort: "new", workclass: "", status: "" };
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
 const dstr = s => s ? s.slice(0, 10) : "–";
 const pdate = p => p.applied_date || p.first_seen_at || "";
@@ -135,6 +147,40 @@ const TRADE_BUCKETS = [
 const TYPE_TO_BUCKET = {};
 TRADE_BUCKETS.forEach(b => (b.types || []).forEach(t => { TYPE_TO_BUCKET[t] = b.id; }));
 const bucketOf = t => TYPE_TO_BUCKET[t || ""] || "";
+
+// ---- Work-class taxonomy: 67 raw labels -> 11 buckets ----
+const WC_BUCKETS = [
+  { id: "", label: "All work classes", types: null },
+  { id: "new", label: "New construction", types: ["NEW", "New One- and Two-Family Dwelling", "New Building or Addition", "New Service/Install", "New and Replacement", "New HVAC/Appliance", "Multi Family"] },
+  { id: "addition", label: "Addition", types: ["ADD", "Addition"] },
+  { id: "alteration", label: "Alteration & repair", types: ["ALT", "I_ALT", "Alteration", "Alteration/Repairs ", "Building Renovation or Repair", "RP", "Change Out", "Change Out HVAC", "Ductwork (Repair/Replace Only)"] },
+  { id: "demolition", label: "Demolition", types: ["DEM", "MOVE"] },
+  { id: "roofing", label: "Roofing", types: ["C_ROOF", "R_ROOF"] },
+  { id: "fire", label: "Fire & life safety", types: ["Fire Alarm", "Fire Sprinklers", "Private Fire Line", "Alternative Fire Extinguishing Systems (Hoods)", "Kitchen Hood and Grease Duct", "Smoke Control Systems", "Emergency Responder Radio Coverage System"] },
+  { id: "pools", label: "Pools & spas", types: ["Pool, Spa & Hot Tub", "Pool/Spa", "Public Pool"] },
+  { id: "site", label: "Site & grading", types: ["Grading", "Right-of-Way Occupancy", "Right-of-Way Work", "Right-of-way [Residential]", "Driveway [Commercial]", "FEMA", "Non-FEMA Floodplain", "Cell Tower/Co-locate"] },
+  { id: "systems", label: "Systems & equipment", types: ["Fuel Piping", "Generator", "Photovoltaic (Solar Panel)", "Low Voltage", "Refrigeration", "Exhaust Systems", "Exhaust Only", "Flammable/Combustible Liquids", "Compressed Gases", "Hazardous Material", "Service Upgrade", "Plumbing Utility", "Charging Station"] },
+  { id: "structures", label: "Structures", types: ["Deck", "R_DECK", "Accessory Building", "Non-Building \u2013 Fences, Walls, Signs, Awnings"] },
+  { id: "other", label: "Other", types: ["OT", "Sub Permit", "FO", "SO", "MN", "COO", "Site Final Only", "Residential", "Commercial", "WCPSS/County Projects"] },
+];
+const WC_TO_BUCKET = {};
+WC_BUCKETS.forEach(b => (b.types || []).forEach(t => { WC_TO_BUCKET[t] = b.id; }));
+const bucketOfWC = t => WC_TO_BUCKET[t || ""] || "";
+
+// ---- Status taxonomy: Durham codes + Wake labels -> 7 buckets ----
+const ST_BUCKETS = [
+  { id: "", label: "All statuses", types: null },
+  { id: "issued", label: "Issued", types: ["ISS", "Issued"] },
+  { id: "review", label: "In Review", types: ["In Review"] },
+  { id: "complete", label: "Complete", types: ["Complete"] },
+  { id: "withdrawn", label: "Withdrawn", types: ["Withdrawn"] },
+  { id: "submitted", label: "Submitted", types: ["Submitted", "Submitted - Online"] },
+  { id: "onhold", label: "On Hold", types: ["On Hold", "On Hold - Customer Action Required"] },
+  { id: "rec", label: "REC", types: ["REC"] },
+];
+const ST_TO_BUCKET = {};
+ST_BUCKETS.forEach(b => (b.types || []).forEach(t => { ST_TO_BUCKET[t] = b.id; }));
+const bucketOfST = t => ST_TO_BUCKET[t || ""] || "";
 
 const FEED_OPTS = [
   { id: "", label: "All sources" },
@@ -192,6 +238,10 @@ function readURL() {
   if (!DAYS_OPTS.some(o => o.id === state.days)) state.days = "7";
   const s = u.get("sort") || "new";
   state.sort = SORT_OPTS.some(o => o.id === s) ? s : "new";
+  const wc = u.get("workclass") || "";
+  state.workclass = WC_BUCKETS.some(b => b.id === wc) ? wc : "";
+  const st = u.get("status") || "";
+  state.status = ST_BUCKETS.some(b => b.id === st) ? st : "";
   syncGroups();
 }
 function writeURL() {
@@ -201,6 +251,8 @@ function writeURL() {
   if (state.feed) u.set("feed", state.feed);
   if (state.days) u.set("days", state.days);
   if (state.sort !== "new") u.set("sort", state.sort);
+  if (state.workclass) u.set("workclass", state.workclass);
+  if (state.status) u.set("status", state.status);
   history.replaceState(null, "", location.pathname + (u.toString() ? "?" + u : ""));
 }
 
@@ -225,8 +277,24 @@ function tag(t, cls, q) {
 function tradeTag(p) {
   const bId = bucketOf(p.permit_type);
   const b = bId ? TRADE_BUCKETS.find(x => x.id === bId) : null;
-  if (b) return tag(b.label, "trade", "type:" + b.id);
+  if (b) return tag(b.label, "trade" + (state.type === b.id ? " active" : ""), "type:" + b.id);
   return p.permit_type ? tag(p.permit_type, "", p.permit_type) : "";
+}
+function wcTag(p) {
+  const bId = bucketOfWC(p.work_class);
+  const b = bId ? WC_BUCKETS.find(x => x.id === bId) : null;
+  if (b) return tag(b.label, state.workclass === b.id ? "active" : "", "wc:" + b.id);
+  return p.work_class ? tag(p.work_class, "", p.work_class) : "";
+}
+function stTag(p) {
+  const bId = bucketOfST(p.status);
+  const b = bId ? ST_BUCKETS.find(x => x.id === bId) : null;
+  if (b) return tag(b.label, state.status === b.id ? "active" : "", "st:" + b.id);
+  return p.status ? tag(p.status, "", p.status) : "";
+}
+function feedTag(p) {
+  if (p.source_feed !== "durham_active") return "";
+  return tag("Durham", "durham" + (state.feed === "durham_active" ? " active" : ""), "feed:durham_active");
 }
 function render() {
   writeURL();
@@ -235,6 +303,8 @@ function render() {
   let rows = permits.filter(p => {
     if (state.type && bucketOf(p.permit_type) !== state.type) return false;
     if (state.feed && p.source_feed !== state.feed) return false;
+    if (state.workclass && bucketOfWC(p.work_class) !== state.workclass) return false;
+    if (state.status && bucketOfST(p.status) !== state.status) return false;
     if (since && new Date(pdate(p) || 0) < since) return false;
     if (q) {
       const hay = [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
@@ -258,9 +328,9 @@ function render() {
       </div>
       <div style="margin-top:6px">
         ${tradeTag(p)}
-        ${p.work_class ? tag(p.work_class, "", p.work_class) : ""}
-        ${p.source_feed === "durham_active" ? tag("Durham", "durham", "feed:durham_active") : ""}
-        ${p.status ? tag(p.status, "", p.status) : ""}
+        ${wcTag(p)}
+        ${feedTag(p)}
+        ${stTag(p)}
       </div>
       <details><summary>Details</summary>
         <div style="margin-top:6px">
@@ -268,6 +338,8 @@ function render() {
           ${p.contractor_phone ? `Phone: ${esc(p.contractor_phone)}<br>` : ""}
           ${p.contractor_license ? `License: ${esc(p.contractor_license)}<br>` : ""}
           ${p.permit_type ? `Permit type: ${esc(p.permit_type)}<br>` : ""}
+          ${p.work_class ? `Work class: ${esc(p.work_class)}<br>` : ""}
+          ${p.status ? `Status: ${esc(p.status)}<br>` : ""}
           Source: ${esc(p.source_feed || "")}
         </div>
       </details>
@@ -283,6 +355,10 @@ function render() {
       state.feed = qv.slice(5);
       state.q = "";
       document.getElementById("q").value = "";
+    } else if (qv.startsWith("wc:")) {
+      state.workclass = qv.slice(3);
+    } else if (qv.startsWith("st:")) {
+      state.status = qv.slice(3);
     } else {
       state.type = "";
       state.q = qv;
@@ -297,6 +373,8 @@ buildGroup("g-type", TRADE_BUCKETS, "type");
 buildGroup("g-feed", FEED_OPTS, "feed");
 buildGroup("g-days", DAYS_OPTS, "days");
 buildGroup("g-sort", SORT_OPTS, "sort");
+buildGroup("g-workclass", WC_BUCKETS, "workclass");
+buildGroup("g-status", ST_BUCKETS, "status");
 document.getElementById("q").addEventListener("input", e => { state.q = e.target.value; render(); });
 
 // ---- Pilot signup form (Supabase waitlist) ----
