@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BidBlotter daily ingest — Wake County permit feeds -> Supabase.
+PermitPicker daily ingest — Wake County permit feeds -> Supabase.
 
 Sources (public ArcGIS REST APIs, no auth):
   wake_building: Wake County Building Permits (nightly refresh)
@@ -32,7 +32,7 @@ SOURCES = {
 }
 
 PAGE = 1000
-UA = {"User-Agent": "BidBlotter-ingest/1.0"}
+UA = {"User-Agent": "PermitPicker-ingest/1.0"}
 
 # Trailing window (days) subtracted from the per-source watermark before
 # querying the county feeds. The feeds publish records ~2-4 days AFTER the
