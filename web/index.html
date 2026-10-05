@@ -50,7 +50,9 @@
   .fbtn .cnt { font-weight: 400; opacity: .6; font-size: 12px; margin-left: 5px; }
   .fbtn.active .cnt { opacity: .9; }
   .fbtn.all { margin-right: 0; }
-  .all-break { flex-basis: 100%; height: 0; }
+  .all-row { margin-bottom: 6px; }
+  .scroll-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  .scroll-row .fbtn { flex-shrink: 0; }
   .frow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
   .frow.two { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 640px) { .frow, .frow.two { grid-template-columns: 1fr; } }
@@ -281,10 +283,10 @@ const SORT_OPTS = [
 function buildGroup(elId, options, key) {
   const el = document.getElementById(elId);
   el.innerHTML = "";
-  options.forEach((o, idx) => {
+  const mk = (o) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "fbtn" + (o.id === "" && idx === 0 ? " all" : "");
+    b.className = "fbtn";
     b.innerHTML = `${o.label} <span class="cnt"></span>`;
     b.dataset.value = o.id;
     b.setAttribute("aria-pressed", "false");
@@ -297,13 +299,22 @@ function buildGroup(elId, options, key) {
       }
       syncGroups(); render();
     });
-    el.appendChild(b);
-    if (o.id === "" && idx === 0) {
-      const br = document.createElement("div");
-      br.className = "all-break";
-      el.appendChild(br);
-    }
-  });
+    return b;
+  };
+  let rest = options;
+  if (options[0] && options[0].id === "") {
+    const allRow = document.createElement("div");
+    allRow.className = "all-row";
+    const ab = mk(options[0]);
+    ab.classList.add("all");
+    allRow.appendChild(ab);
+    el.appendChild(allRow);
+    rest = options.slice(1);
+  }
+  const sc = document.createElement("div");
+  sc.className = "scroll-row";
+  rest.forEach(o => sc.appendChild(mk(o)));
+  el.appendChild(sc);
 }
 function syncGroups() {
   document.querySelectorAll(".btn-group").forEach(g => {
