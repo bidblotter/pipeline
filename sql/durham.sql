@@ -1,4 +1,4 @@
--- Durham "Active *" permit snapshot (BidBlotter phase 2)
+-- Durham "Active *" permit snapshot (PermitPicker phase 2)
 -- Run once in the Supabase SQL editor.
 -- The Durham ArcGIS feeds have no date fields, so the daily ingest diffs
 -- Permit_IDs against this snapshot: new IDs = new permits.
