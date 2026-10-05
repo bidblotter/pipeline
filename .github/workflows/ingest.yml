@@ -21,7 +21,7 @@ on:
         default: "electrical"
       digest_days:
         description: "Digest lookback window in days"
-        default: "1"
+        default: "7"
 
 jobs:
   ingest:
@@ -76,7 +76,7 @@ jobs:
           DAYS="${{ inputs.digest_days }}"
           [ -z "$TO" ] && TO="bidblotter@gmail.com"
           [ -z "$TRADE" ] && TRADE="electrical"
-          [ -z "$DAYS" ] && DAYS="1"
+          [ -z "$DAYS" ] && DAYS="7"
           python pipeline/digest.py --trade "$TRADE" --days "$DAYS" --out /tmp/digest.txt > /tmp/digest_meta.txt
           SUBJECT=$(grep "^SUBJECT: " /tmp/digest_meta.txt | sed 's/^SUBJECT: //')
           [ -z "$SUBJECT" ] && SUBJECT="PermitPicker morning digest: $TRADE"
