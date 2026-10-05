@@ -15,7 +15,7 @@ on:
         default: "false"
       digest_to:
         description: "Digest recipient email"
-        default: "bidblotter@gmail.com"
+        default: "permitpicker@gmail.com"
       digest_trade:
         description: "Digest trade keyword (e.g. electrical)"
         default: "electrical"
@@ -74,7 +74,7 @@ jobs:
           TO="${{ inputs.digest_to }}"
           TRADE="${{ inputs.digest_trade }}"
           DAYS="${{ inputs.digest_days }}"
-          [ -z "$TO" ] && TO="bidblotter@gmail.com"
+          [ -z "$TO" ] && TO="permitpicker@gmail.com"
           [ -z "$TRADE" ] && TRADE="electrical"
           [ -z "$DAYS" ] && DAYS="7"
           python pipeline/digest.py --trade "$TRADE" --days "$DAYS" --out /tmp/digest.txt > /tmp/digest_meta.txt
@@ -90,7 +90,7 @@ jobs:
         run: |
           python pipeline/notify_signups.py --out /tmp/signups.txt
           if [ -s /tmp/signups.txt ]; then
-            python pipeline/send_digest.py --to "bidblotter@gmail.com" --subject "PermitPicker: new waitlist signups" --body-file /tmp/signups.txt
+            python pipeline/send_digest.py --to "permitpicker@gmail.com" --subject "PermitPicker: new waitlist signups" --body-file /tmp/signups.txt
           else
             echo "no new signups"
           fi
