@@ -2,7 +2,7 @@
 """Build a scannable morning digest for one trade from web/data/permits.json.
 
 Two sections:
-  NEW SINCE YESTERDAY — permits first seen by BidBlotter in the last 24h
+  NEW SINCE YESTERDAY — permits first seen by PermitPicker in the last 24h
     (discovery date, not filing date: the county feed lags ~3 days, so
     "filed yesterday" would usually be empty).
   THIS WEEK — permits filed in the last --days (default 7), the running look.
@@ -17,7 +17,7 @@ import datetime as dt
 import json
 import os
 
-SITE = "https://bidblotter.github.io/pipeline/"
+SITE = "https://permitpicker.com/"
 LIST_CAP = 25
 # The digest product went live 2026-10-04; rows first seen before that are the
 # initial backfill, not "new". (Without this guard the backfill batch would
@@ -118,9 +118,9 @@ def main():
             L.append(f"  {SITE}?q={kw}&days={args.days}")
             L.append("")
     L.append("---")
-    L.append("BidBlotter — Raleigh-Durham permit intelligence. "
+    L.append("PermitPicker — Raleigh-Durham permit intelligence. "
              "Public records, refreshed daily.")
-    L.append("You're receiving this as a BidBlotter pilot subscriber.")
+    L.append("You're receiving this as a PermitPicker pilot subscriber.")
     text = "\n".join(L).rstrip() + "\n"
 
     if args.out:
@@ -128,10 +128,10 @@ def main():
             f.write(text)
     n, w = len(new_rows), len(week_rows)
     if n:
-        subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — BidBlotter"
+        subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — PermitPicker"
     else:
-        subject = (f"{w} {kw} permits this week — BidBlotter"
-                   if w else f"No new {kw} permits — BidBlotter")
+        subject = (f"{w} {kw} permits this week — PermitPicker"
+                   if w else f"No new {kw} permits — PermitPicker")
     print(f"SUBJECT: {subject}")
 
 
