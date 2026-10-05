@@ -154,6 +154,12 @@ function toggleIn(arr, v) {
 let shown = 300, lastSig = "";
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
 const dstr = s => s ? s.slice(0, 10) : "–";
+function dateLine(p) {
+  if (p.source_feed === "durham_active" && p.applied_year) {
+    return `Applied ${p.applied_year} · First tracked ${dstr(p.first_seen_at)}`;
+  }
+  return `${p.applied_date ? "Filed " + dstr(p.applied_date) : "First tracked " + dstr(p.first_seen_at)}${p.issued_date ? " · Issued " + dstr(p.issued_date) : ""}`;
+}
 const pdate = p => p.applied_date || p.first_seen_at || "";
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -369,7 +375,7 @@ function render() {
       <div class="meta">
         <span><b>${esc(p.permit_number || "")}</b></span>
         <span class="val">${money(p.valuation)}</span>
-        <span>${p.applied_date ? "Filed " + dstr(p.applied_date) : "First tracked " + dstr(p.first_seen_at)}${p.issued_date ? " · Issued " + dstr(p.issued_date) : ""}</span>
+        <span>${dateLine(p)}</span>
       </div>
       <div style="margin-top:6px">
         ${tradeTag(p)}
