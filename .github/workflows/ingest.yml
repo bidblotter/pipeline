@@ -81,6 +81,19 @@ jobs:
           SUBJECT=$(grep "^SUBJECT: " /tmp/digest_meta.txt | sed 's/^SUBJECT: //')
           [ -z "$SUBJECT" ] && SUBJECT="PermitPicker morning digest: $TRADE"
           python pipeline/send_digest.py --to "$TO" --subject "$SUBJECT" --body-file /tmp/digest.txt
+      - name: Notify new signups
+        if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          python pipeline/notify_signups.py --out /tmp/signups.txt
+          if [ -s /tmp/signups.txt ]; then
+            python pipeline/send_digest.py --to "bidblotter@gmail.com" --subject "PermitPicker: new waitlist signups" --body-file /tmp/signups.txt
+          else
+            echo "no new signups"
+          fi
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
