@@ -40,10 +40,10 @@
   #su-msg.err { color: #ff9d9d; }
   .filters { background: #fff; margin: 0 16px 12px; padding: 14px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
   .filters input[type=text] { width: 100%; padding: 9px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
-  .fgroup { margin-bottom: 12px; }
+  .fgroup { margin-bottom: 12px; min-width: 0; }
   .fgroup:last-child { margin-bottom: 2px; }
   .flabel { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: #889; margin-bottom: 6px; }
-  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group { display: block; }
   .fbtn { padding: 7px 13px; border: 1px solid #c8d2dc; background: #fff; border-radius: 20px; font-size: 13px; cursor: pointer; color: #1c2733; font-family: inherit; }
   .fbtn:hover { border-color: #14324a; }
   .fbtn.active { background: #14324a; border-color: #14324a; color: #fff; font-weight: 600; }
@@ -166,22 +166,22 @@
       <div class="btn-group" id="g-feed" data-key="feed"></div>
     </div>
     <div class="fgroup">
-      <div class="flabel">When</div>
-      <div class="btn-group" id="g-days" data-key="days"></div>
-    </div>
-    <div class="fgroup">
-      <div class="flabel">Sort</div>
-      <div class="btn-group" id="g-sort" data-key="sort"></div>
-    </div>
-  </div>
-  <div class="frow two">
-    <div class="fgroup">
       <div class="flabel">Work class</div>
       <div class="btn-group" id="g-workclass" data-key="workclass"></div>
     </div>
     <div class="fgroup">
       <div class="flabel">Status</div>
       <div class="btn-group" id="g-status" data-key="status"></div>
+    </div>
+  </div>
+  <div class="frow two">
+    <div class="fgroup">
+      <div class="flabel">When</div>
+      <div class="btn-group" id="g-days" data-key="days"></div>
+    </div>
+    <div class="fgroup">
+      <div class="flabel">Sort</div>
+      <div class="btn-group" id="g-sort" data-key="sort"></div>
     </div>
   </div>
 </div>
