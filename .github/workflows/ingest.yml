@@ -95,9 +95,11 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
+          TO="${{ inputs.digest_to }}"
+          [ -z "$TO" ] && TO="permitpicker@gmail.com"
           python pipeline/notify_signups.py --out /tmp/signups.txt
           if [ -s /tmp/signups.txt ]; then
-            python pipeline/send_digest.py --to "permitpicker@gmail.com" --subject "PermitPicker: new waitlist signups" --body-file /tmp/signups.txt
+            python pipeline/send_digest.py --to "$TO" --subject "PermitPicker: new waitlist signups" --body-file /tmp/signups.txt
           else
             echo "no new signups"
           fi
