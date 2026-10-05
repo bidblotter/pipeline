@@ -46,6 +46,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python pipeline/durham.py
+      - name: Run Cary ingest
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BACKFILL_DAYS: ${{ inputs.backfill_days }}
+        run: python pipeline/cary.py
       - name: Export preview data
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
