@@ -45,6 +45,9 @@
   .fbtn { padding: 7px 13px; border: 1px solid #c8d2dc; background: #fff; border-radius: 20px; font-size: 13px; cursor: pointer; color: #1c2733; font-family: inherit; }
   .fbtn:hover { border-color: #14324a; }
   .fbtn.active { background: #14324a; border-color: #14324a; color: #fff; font-weight: 600; }
+  .fbtn .cnt { font-weight: 400; opacity: .6; font-size: 12px; margin-left: 5px; }
+  .fbtn.active .cnt { opacity: .9; }
+  .fbtn.all { margin-right: 14px; }
   .frow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
   .frow.two { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 640px) { .frow, .frow.two { grid-template-columns: 1fr; } }
@@ -239,11 +242,11 @@ const SORT_OPTS = [
 function buildGroup(elId, options, key) {
   const el = document.getElementById(elId);
   el.innerHTML = "";
-  options.forEach(o => {
+  options.forEach((o, idx) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "fbtn";
-    b.textContent = o.label;
+    b.className = "fbtn" + (o.id === "" && idx === 0 ? " all" : "");
+    b.innerHTML = `${o.label} <span class="cnt"></span>`;
     b.dataset.value = o.id;
     b.setAttribute("aria-pressed", "false");
     b.addEventListener("click", () => {
@@ -344,6 +347,56 @@ function feedTag(p) {
   if (p.source_feed !== "durham_active") return "";
   return tag("Durham", "durham" + (state.feed.includes("durham_active") ? " active" : ""), "feed:durham_active");
 }
+function hay(p) {
+  return [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
+}
+// All active filters except the dimension named by `except` (for faceted counts).
+function passFilters(p, i, qok, since, except) {
+  if (!qok[i]) return false;
+  if (except !== "type" && state.type.length && !state.type.includes(bucketOf(p.permit_type))) return false;
+  if (except !== "feed" && state.feed.length && !state.feed.includes(p.source_feed)) return false;
+  if (except !== "workclass" && state.workclass.length && !state.workclass.includes(bucketOfWC(p.work_class))) return false;
+  if (except !== "status" && state.status.length && !state.status.includes(bucketOfST(p.status))) return false;
+  if (except !== "days" && since && new Date(pdate(p) || 0) < since) return false;
+  return true;
+}
+function updateCounts(qok, since) {
+  const now = Date.now();
+  const groups = [
+    ["type", "g-type", p => bucketOf(p.permit_type) || ""],
+    ["feed", "g-feed", p => p.source_feed || ""],
+    ["workclass", "g-workclass", p => bucketOfWC(p.work_class) || ""],
+    ["status", "g-status", p => bucketOfST(p.status) || ""],
+  ];
+  for (const [key, gid, of] of groups) {
+    const counts = Object.create(null);
+    let total = 0;
+    for (let i = 0; i < permits.length; i++) {
+      const p = permits[i];
+      if (!passFilters(p, i, qok, since, key)) continue;
+      const b = of(p);
+      counts[b] = (counts[b] || 0) + 1;
+      total++;
+    }
+    document.querySelectorAll("#" + gid + " .fbtn").forEach(btn => {
+      const v = btn.dataset.value;
+      btn.querySelector(".cnt").textContent = (v === "" ? total : (counts[v] || 0)).toLocaleString();
+    });
+  }
+  // When group: nested ranges over everything matching except the date filter.
+  const perRange = { "7": 0, "30": 0, "": 0 };
+  for (let i = 0; i < permits.length; i++) {
+    const p = permits[i];
+    if (!passFilters(p, i, qok, since, "days")) continue;
+    perRange[""]++;
+    const t = new Date(pdate(p) || 0).getTime();
+    if (t >= now - 7 * 864e5) perRange["7"]++;
+    if (t >= now - 30 * 864e5) perRange["30"]++;
+  }
+  document.querySelectorAll("#g-days .fbtn").forEach(btn => {
+    btn.querySelector(".cnt").textContent = (perRange[btn.dataset.value] || 0).toLocaleString();
+  });
+}
 function render() {
   writeURL();
   // Reset the visible-card count whenever the filters change.
@@ -351,18 +404,13 @@ function render() {
   if (sig !== lastSig) { shown = 300; lastSig = sig; }
   const q = state.q.toLowerCase();
   const since = state.days ? Date.now() - Number(state.days) * 864e5 : 0;
-  let rows = permits.filter(p => {
-    if (state.type.length && !state.type.includes(bucketOf(p.permit_type))) return false;
-    if (state.feed.length && !state.feed.includes(p.source_feed)) return false;
-    if (state.workclass.length && !state.workclass.includes(bucketOfWC(p.work_class))) return false;
-    if (state.status.length && !state.status.includes(bucketOfST(p.status))) return false;
-    if (since && new Date(pdate(p) || 0) < since) return false;
-    if (q) {
-      const hay = [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+  const qok = new Array(permits.length);
+  for (let i = 0; i < permits.length; i++) qok[i] = !q || hay(permits[i]).includes(q);
+  updateCounts(qok, since);
+  let rows = [];
+  for (let i = 0; i < permits.length; i++) {
+    if (passFilters(permits[i], i, qok, since, null)) rows.push(permits[i]);
+  }
   rows.sort((a, b) => state.sort === "val"
     ? (Number(b.valuation) || 0) - (Number(a.valuation) || 0)
     : (pdate(b) > pdate(a) ? 1 : -1));
