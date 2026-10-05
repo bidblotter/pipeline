@@ -47,7 +47,8 @@
   .fbtn.active { background: #14324a; border-color: #14324a; color: #fff; font-weight: 600; }
   .fbtn .cnt { font-weight: 400; opacity: .6; font-size: 12px; margin-left: 5px; }
   .fbtn.active .cnt { opacity: .9; }
-  .fbtn.all { margin-right: 14px; }
+  .fbtn.all { margin-right: 0; }
+  .all-break { flex-basis: 100%; height: 0; }
   .frow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
   .frow.two { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 640px) { .frow, .frow.two { grid-template-columns: 1fr; } }
@@ -176,11 +177,11 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp
 // ---- Trade taxonomy: raw feed labels -> friendly buckets ----
 const TRADE_BUCKETS = [
   { id: "", label: "All trades", types: null },
-  { id: "electrical", label: "Electrical", types: ["BI_ELEC", "DSINSP - Electrical (Non-Residential)", "DSINSP - Electrical (Residential)", "DSINSP - Online Only Electrical (Non-Residential)", "DSINSP - Online Only Electrical (Residential)"] },
-  { id: "plumbing", label: "Plumbing", types: ["BI_PLUM", "DSINSP - Plumbing (Non-Residential)", "DSINSP - Plumbing (Residential)", "DSINSP - Online Only Plumbing (Non-Residential)", "DSINSP - Online Only Plumbing (Residential)"] },
-  { id: "mechanical", label: "HVAC / Mechanical", types: ["BI_MEC", "DSINSP - Mechanical (Non-Residential)", "DSINSP - Mechanical (Residential)", "DSINSP - Online Only Mechanical (Non-Residential)", "DSINSP - Online Only Mechanical (Residential)"] },
-  { id: "building", label: "Building", types: ["BI_BLD", "Commercial Building", "Residential Building", "Residential Accessory Building Structure", "Manufactured Home Permit"] },
-  { id: "demolition", label: "Demolition", types: ["Demolition Permit"] },
+  { id: "electrical", label: "Electrical", types: ["BI_ELEC", "DSINSP - Electrical (Non-Residential)", "DSINSP - Electrical (Residential)", "DSINSP - Online Only Electrical (Non-Residential)", "DSINSP - Online Only Electrical (Residential)", "electrical"] },
+  { id: "plumbing", label: "Plumbing", types: ["BI_PLUM", "DSINSP - Plumbing (Non-Residential)", "DSINSP - Plumbing (Residential)", "DSINSP - Online Only Plumbing (Non-Residential)", "DSINSP - Online Only Plumbing (Residential)", "plumbing"] },
+  { id: "mechanical", label: "HVAC / Mechanical", types: ["BI_MEC", "DSINSP - Mechanical (Non-Residential)", "DSINSP - Mechanical (Residential)", "DSINSP - Online Only Mechanical (Non-Residential)", "DSINSP - Online Only Mechanical (Residential)", "mechanical"] },
+  { id: "building", label: "Building", types: ["BI_BLD", "Commercial Building", "Residential Building", "Residential Accessory Building Structure", "Manufactured Home Permit", "building"] },
+  { id: "demolition", label: "Demolition", types: ["Demolition Permit", "demolition"] },
   { id: "fire", label: "Fire protection", types: ["FIRE - Fire Protection"] },
   { id: "sitework", label: "Site work", types: ["DSENG - Right of Way", "ENG - Floodplain", "ENG - Land Disturbance (Grading)"] },
 ];
@@ -191,9 +192,9 @@ const bucketOf = t => TYPE_TO_BUCKET[t || ""] || "";
 // ---- Work-class taxonomy: 67 raw labels -> 11 buckets ----
 const WC_BUCKETS = [
   { id: "", label: "All work classes", types: null },
-  { id: "new", label: "New construction", types: ["NEW", "New One- and Two-Family Dwelling", "New Building or Addition", "New Service/Install", "New and Replacement", "New HVAC/Appliance", "Multi Family"] },
+  { id: "new", label: "New construction", types: ["NEW", "New", "New One- and Two-Family Dwelling", "New Building or Addition", "New Service/Install", "New and Replacement", "New HVAC/Appliance", "Multi Family"] },
   { id: "addition", label: "Addition", types: ["ADD", "Addition"] },
-  { id: "alteration", label: "Alteration & repair", types: ["ALT", "I_ALT", "Alteration", "Alteration/Repairs ", "Building Renovation or Repair", "RP", "Change Out", "Change Out HVAC", "Ductwork (Repair/Replace Only)"] },
+  { id: "alteration", label: "Alteration & repair", types: ["ALT", "I_ALT", "Alteration", "Alteration/Repairs ", "Building Renovation or Repair", "RP", "Change Out", "Change Out HVAC", "Ductwork (Repair/Replace Only)", "Existing"] },
   { id: "demolition", label: "Demolition", types: ["DEM", "MOVE"] },
   { id: "roofing", label: "Roofing", types: ["C_ROOF", "R_ROOF"] },
   { id: "fire", label: "Fire & life safety", types: ["Fire Alarm", "Fire Sprinklers", "Private Fire Line", "Alternative Fire Extinguishing Systems (Hoods)", "Kitchen Hood and Grease Duct", "Smoke Control Systems", "Emergency Responder Radio Coverage System"] },
@@ -226,6 +227,7 @@ const FEED_OPTS = [
   { id: "", label: "All sources" },
   { id: "wake_building", label: "Wake building" },
   { id: "wake_trade", label: "Wake trade" },
+  { id: "cary", label: "Cary" },
   // Durham OFF 2026-10-04 (stale-snapshot fix pending) — restore to re-enable.
   // { id: "durham_active", label: "Durham" },
 ];
@@ -260,6 +262,11 @@ function buildGroup(elId, options, key) {
       syncGroups(); render();
     });
     el.appendChild(b);
+    if (o.id === "" && idx === 0) {
+      const br = document.createElement("div");
+      br.className = "all-break";
+      el.appendChild(br);
+    }
   });
 }
 function syncGroups() {
