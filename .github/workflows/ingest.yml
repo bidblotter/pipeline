@@ -79,7 +79,7 @@ jobs:
           [ -z "$DAYS" ] && DAYS="1"
           python pipeline/digest.py --trade "$TRADE" --days "$DAYS" --out /tmp/digest.txt > /tmp/digest_meta.txt
           SUBJECT=$(grep "^SUBJECT: " /tmp/digest_meta.txt | sed 's/^SUBJECT: //')
-          [ -z "$SUBJECT" ] && SUBJECT="BidBlotter morning digest: $TRADE"
+          [ -z "$SUBJECT" ] && SUBJECT="PermitPicker morning digest: $TRADE"
           python pipeline/send_digest.py --to "$TO" --subject "$SUBJECT" --body-file /tmp/digest.txt
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
