@@ -1,4 +1,4 @@
--- BidBlotter pipeline schema (Supabase / Postgres)
+-- PermitPicker pipeline schema (Supabase / Postgres)
 -- Run this once in the Supabase SQL editor.
 
 create table if not exists permits (
