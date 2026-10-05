@@ -62,6 +62,22 @@
   .tag.st { background: #fdf0dd; color: #8a5a13; }
   .tag.st:hover { background: #f8e3c2; }
   .tag.active { background: #14324a; border-color: #14324a; color: #fff; }
+  /* active = darker shade of each category's own color */
+  .tag.trade.active { background: #1a6b3c; border-color: #1a6b3c; color: #fff; }
+  .tag.wc.active { background: #1a4d8f; border-color: #1a4d8f; color: #fff; }
+  .tag.durham.active { background: #4a2a8a; border-color: #4a2a8a; color: #fff; }
+  .tag.st.active { background: #8a5a13; border-color: #8a5a13; color: #fff; }
+  .btn-group[data-key="type"] .fbtn.active { background: #1a6b3c; border-color: #1a6b3c; }
+  .btn-group[data-key="workclass"] .fbtn.active { background: #1a4d8f; border-color: #1a4d8f; }
+  .btn-group[data-key="status"] .fbtn.active { background: #8a5a13; border-color: #8a5a13; }
+  .btn-group[data-key="feed"] .fbtn.active { background: #4a2a8a; border-color: #4a2a8a; }
+  .tag-key { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 2px 0 12px; font-size: 13px; color: #5a6b7a; }
+  .key-item { display: inline-flex; align-items: center; gap: 6px; }
+  .key-chip { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+  .key-chip.trade { background: #e6f4ea; border: 1px solid #bfe0c9; }
+  .key-chip.wc { background: #e3ecf8; border: 1px solid #bccfe8; }
+  .key-chip.st { background: #fdf0dd; border: 1px solid #f0d9ae; }
+  .key-chip.durham { background: #e8e4f4; border: 1px solid #c9bde4; }
   .val { color: #0a7a3d; font-weight: 700; }
   details { margin-top: 8px; font-size: 13px; color: #445; }
   details summary { cursor: pointer; color: #1463a0; }
@@ -98,6 +114,12 @@
 </div>
 <div class="filters">
   <input type="text" id="q" placeholder="Search address, contractor, description, permit #…">
+  <div class="tag-key">
+    <span class="key-item"><span class="key-chip trade"></span>Trade</span>
+    <span class="key-item"><span class="key-chip wc"></span>Work class</span>
+    <span class="key-item"><span class="key-chip st"></span>Status</span>
+    <span class="key-item"><span class="key-chip durham"></span>Source</span>
+  </div>
   <div class="fgroup">
     <div class="flabel">Trade</div>
     <div class="btn-group" id="g-type" data-key="type"></div>
