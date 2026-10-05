@@ -150,6 +150,10 @@
   </div>
 </div>
 <div id="list"></div>
+<div id="more-wrap" style="text-align:center;margin:18px 0 6px;display:none">
+  <button id="more-btn" class="fbtn" style="font-size:14px;padding:10px 22px">Show more</button>
+  <div id="more-count" style="margin-top:8px;font-size:13px;color:#5a6b7a"></div>
+</div>
 <footer>PermitPicker preview — recent Wake County filings + Durham active permits. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
@@ -160,6 +164,7 @@ function toggleIn(arr, v) {
   const i = arr.indexOf(v);
   if (i >= 0) arr.splice(i, 1); else arr.push(v);
 }
+let shown = 300, lastSig = "";
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
 const dstr = s => s ? s.slice(0, 10) : "–";
 const pdate = p => p.applied_date || p.first_seen_at || "";
@@ -341,6 +346,9 @@ function feedTag(p) {
 }
 function render() {
   writeURL();
+  // Reset the visible-card count whenever the filters change.
+  const sig = JSON.stringify([state.q, state.type, state.feed, state.days, state.sort, state.workclass, state.status]);
+  if (sig !== lastSig) { shown = 300; lastSig = sig; }
   const q = state.q.toLowerCase();
   const since = state.days ? Date.now() - Number(state.days) * 864e5 : 0;
   let rows = permits.filter(p => {
@@ -359,8 +367,15 @@ function render() {
     ? (Number(b.valuation) || 0) - (Number(a.valuation) || 0)
     : (pdate(b) > pdate(a) ? 1 : -1));
   const el = document.getElementById("list");
-  if (!rows.length) { el.innerHTML = '<div class="empty">No permits match your filters.</div>'; return; }
-  el.innerHTML = rows.slice(0, 300).map(p => `
+  const moreWrap = document.getElementById("more-wrap");
+  const moreBtn = document.getElementById("more-btn");
+  const moreCount = document.getElementById("more-count");
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">No permits match your filters.</div>';
+    moreWrap.style.display = "none";
+    return;
+  }
+  el.innerHTML = rows.slice(0, shown).map(p => `
     <div class="card">
       <h3>${esc(p.description || p.permit_type || "Permit")} </h3>
       <div class="addr">${esc(p.address || "")}${p.city ? ", " + esc(p.city) : ""}</div>
@@ -387,7 +402,12 @@ function render() {
         </div>
       </details>
     </div>`).join("");
-  if (rows.length > 300) el.innerHTML += `<div class="empty">Showing 300 of ${rows.length} — refine your search.</div>`;
+  if (rows.length > shown) {
+    moreWrap.style.display = "";
+    moreCount.textContent = `Showing ${shown} of ${rows.length.toLocaleString()}`;
+  } else {
+    moreWrap.style.display = "none";
+  }
   el.querySelectorAll(".tag").forEach(t => t.addEventListener("click", () => {
     const qv = t.dataset.q;
     if (qv.startsWith("type:")) {
@@ -419,6 +439,7 @@ buildGroup("g-sort", SORT_OPTS, "sort");
 buildGroup("g-workclass", WC_BUCKETS, "workclass");
 buildGroup("g-status", ST_BUCKETS, "status");
 document.getElementById("q").addEventListener("input", e => { state.q = e.target.value; render(); });
+document.getElementById("more-btn").addEventListener("click", () => { shown += 300; render(); });
 
 // ---- Pilot signup form (Supabase waitlist) ----
 const SUPABASE_URL = "https://jxuarfprpsbokyxujdlj.supabase.co";
