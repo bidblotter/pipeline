@@ -419,7 +419,7 @@ function feedTag(p) {
 function coTag(p) {
   if (!p.contractor) return "";
   const active = state.q && p.contractor.toLowerCase() === state.q.toLowerCase() ? " active" : "";
-  return tag(p.contractor, "co" + active, p.contractor);
+  return tag(p.contractor, "co" + active, "co:" + p.contractor);
 }
 function hay(p) {
   return [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
@@ -557,6 +557,16 @@ function render() {
       toggleIn(state.workclass, qv.slice(3));
     } else if (qv.startsWith("st:")) {
       toggleIn(state.status, qv.slice(3));
+    } else if (qv.startsWith("co:")) {
+      const name = qv.slice(3);
+      if (state.q.toLowerCase() === name.toLowerCase()) {
+        state.q = "";
+        document.getElementById("q").value = "";
+      } else {
+        state.type = [];
+        state.q = name;
+        document.getElementById("q").value = name;
+      }
     } else {
       state.type = [];
       state.q = qv;
