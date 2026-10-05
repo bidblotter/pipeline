@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://permitpicker.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://permitpicker.com/?type=electrical</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/?type=plumbing</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/?type=mechanical</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/?type=building</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/?type=demolition</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/?type=fire</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/?type=sitework</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+</urlset>
