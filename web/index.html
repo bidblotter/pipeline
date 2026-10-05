@@ -151,7 +151,7 @@
   <button id="more-btn" class="fbtn" style="font-size:14px;padding:10px 22px">Show more</button>
   <div id="more-count" style="margin-top:8px;font-size:13px;color:#5a6b7a"></div>
 </div>
-<footer>PermitPicker preview — recent Wake County filings + Durham active permits. Public records, refreshed daily.</footer>
+<footer>PermitPicker preview — recent Wake County filings. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
 const state = { q: "", type: [], feed: [], days: "7", sort: "new", workclass: [], status: [] };
@@ -226,7 +226,8 @@ const FEED_OPTS = [
   { id: "", label: "All sources" },
   { id: "wake_building", label: "Wake building" },
   { id: "wake_trade", label: "Wake trade" },
-  { id: "durham_active", label: "Durham" },
+  // Durham OFF 2026-10-04 (stale-snapshot fix pending) — restore to re-enable.
+  // { id: "durham_active", label: "Durham" },
 ];
 const DAYS_OPTS = [
   { id: "7", label: "Last 7 days" },
