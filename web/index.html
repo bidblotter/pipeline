@@ -431,7 +431,12 @@ function updateCounts(qok, since) {
     }
     document.querySelectorAll("#" + gid + " .fbtn").forEach(btn => {
       const v = btn.dataset.value;
-      btn.querySelector(".cnt").textContent = (v === "" ? total : (counts[v] || 0)).toLocaleString();
+      const n = v === "" ? total : (counts[v] || 0);
+      btn.querySelector(".cnt").textContent = n.toLocaleString();
+      const on = MULTI[key]
+        ? (v === "" ? state[key].length === 0 : state[key].includes(v))
+        : (v === state[key]);
+      btn.style.display = (n === 0 && v !== "" && !on) ? "none" : "";
     });
   }
   // When group: nested ranges over everything matching except the date filter.
@@ -445,7 +450,11 @@ function updateCounts(qok, since) {
     if (t >= now - 30 * 864e5) perRange["30"]++;
   }
   document.querySelectorAll("#g-days .fbtn").forEach(btn => {
-    btn.querySelector(".cnt").textContent = (perRange[btn.dataset.value] || 0).toLocaleString();
+    const v = btn.dataset.value;
+    const n = perRange[v] || 0;
+    btn.querySelector(".cnt").textContent = n.toLocaleString();
+    const on = v === state.days;
+    btn.style.display = (n === 0 && v !== "" && !on) ? "none" : "";
   });
 }
 function render() {
