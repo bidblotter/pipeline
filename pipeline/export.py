@@ -37,12 +37,14 @@ def main():
     rows, offset, page = [], 0, 1000
     since_q = urllib.parse.quote(since, safe="")
     while True:
-        # Wake rows are date-windowed; Durham is an active-permits snapshot
-        # with no published filing dates, so include all durham_active rows.
-        # Ordering MUST be total: 23k Durham rows share NULL applied_date and
-        # offset pagination over tied rows returns dupes and drops rows.
-        params = (f"?select={FIELDS}&or=(applied_date.gte.{since_q},"
-                  f"issued_date.gte.{since_q},source_feed.eq.durham_active)"
+        # Wake rows are date-windowed. Durham is OFF for now (2026-10-04):
+        # its active-permit snapshot needs the stale-permit retirement fix
+        # before the data is trustworthy. Ingest still runs so the snapshot
+        # history stays intact; flip DURHAM_ON to re-enable.
+        DURHAM_ON = False
+        or_clause = (f"(applied_date.gte.{since_q},issued_date.gte.{since_q}"
+                     + (",source_feed.eq.durham_active" if DURHAM_ON else "") + ")")
+        params = (f"?select={FIELDS}&or={or_clause}"
                   f"&order=applied_date.desc.nullslast,source_feed.asc,"
                   f"permit_number.asc&limit={page}&offset={offset}")
         chunk = sb("permits", params=params)
