@@ -76,12 +76,15 @@
   .tag.wc:hover { background: #d1e0f2; }
   .tag.st { background: #fdf0dd; color: #8a5a13; }
   .tag.st:hover { background: #f8e3c2; }
+  .tag.co { background: #dcf5f2; color: #0b6b62; }
+  .tag.co:hover { background: #c8ece8; }
   .tag.active { background: #14324a; border-color: #14324a; color: #fff; }
   /* active = darker shade of each category's own color */
   .tag.trade.active { background: #1a6b3c; border-color: #1a6b3c; color: #fff; }
   .tag.wc.active { background: #1a4d8f; border-color: #1a4d8f; color: #fff; }
   .tag.durham.active { background: #4a2a8a; border-color: #4a2a8a; color: #fff; }
   .tag.st.active { background: #8a5a13; border-color: #8a5a13; color: #fff; }
+  .tag.co.active { background: #0b6b62; border-color: #0b6b62; color: #fff; }
   .btn-group[data-key="type"] .fbtn.active { background: #1a6b3c; border-color: #1a6b3c; }
   .btn-group[data-key="workclass"] .fbtn.active { background: #1a4d8f; border-color: #1a4d8f; }
   .btn-group[data-key="status"] .fbtn.active { background: #8a5a13; border-color: #8a5a13; }
@@ -111,12 +114,15 @@
     .tag.wc:hover { background: #1d3350; }
     .tag.st { background: #3a2c12; color: #f2c078; }
     .tag.st:hover { background: #4a3817; }
+    .tag.co { background: #123b37; color: #7ce8dc; }
+    .tag.co:hover { background: #174a45; }
     .tag.durham { background: #2a2140; color: #c4b0f0; }
     .tag.durham:hover { background: #352a52; }
     .tag.active { background: #ffb020; border-color: #ffb020; color: #14324a; }
     .tag.trade.active { background: #2a7a48; border-color: #2a7a48; color: #fff; }
     .tag.wc.active { background: #2a5da8; border-color: #2a5da8; color: #fff; }
     .tag.st.active { background: #a86e18; border-color: #a86e18; color: #fff; }
+    .tag.co.active { background: #149a8c; border-color: #149a8c; color: #fff; }
     .tag.durham.active { background: #5d3fa8; border-color: #5d3fa8; color: #fff; }
     .btn-group[data-key="type"] .fbtn.active { background: #2a7a48; border-color: #2a7a48; color: #fff; }
     .btn-group[data-key="workclass"] .fbtn.active { background: #2a5da8; border-color: #2a5da8; color: #fff; }
@@ -173,6 +179,10 @@
     <div class="btn-group" id="g-status" data-key="status"></div>
   </div>
   <div class="fgroup">
+    <div class="flabel">Contractor</div>
+    <div class="btn-group" id="g-contractor" data-key="contractor"></div>
+  </div>
+  <div class="fgroup">
     <div class="flabel">When</div>
     <div class="btn-group" id="g-days" data-key="days"></div>
   </div>
@@ -189,7 +199,7 @@
 <footer>PermitPicker preview — recent Wake County filings. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
-const state = { q: "", type: [], feed: [], days: "7", sort: "new", workclass: [], status: [] };
+const state = { q: "", type: [], feed: [], days: "7", sort: "new", workclass: [], status: [], contractor: "" };
 // Multi-select applies to tag categories; When and Sort stay single-select.
 const MULTI = { type: true, feed: true, workclass: true, status: true };
 function toggleIn(arr, v) {
@@ -274,6 +284,11 @@ const SORT_OPTS = [
   { id: "new", label: "Newest first" },
   { id: "val", label: "Highest valuation" },
 ];
+const CO_OPTS = [
+  { id: "", label: "All contractors" },
+  { id: "yes", label: "Has contractor" },
+  { id: "no", label: "No contractor" },
+];
 
 // ---- Button groups ----
 function buildGroup(elId, options, key) {
@@ -344,6 +359,8 @@ function readURL() {
   state.workclass = [...new Set(wc.filter(v => v && WC_BUCKETS.some(b => b.id === v)))];
   const st = u.getAll("status");
   state.status = [...new Set(st.filter(v => v && ST_BUCKETS.some(b => b.id === v)))];
+  const co = u.get("contractor");
+  state.contractor = (co === "yes" || co === "no") ? co : "";
   syncGroups();
 }
 function writeURL() {
@@ -355,6 +372,7 @@ function writeURL() {
   if (state.sort !== "new") u.set("sort", state.sort);
   state.workclass.forEach(w => u.append("workclass", w));
   state.status.forEach(s => u.append("status", s));
+  if (state.contractor) u.set("contractor", state.contractor);
   history.replaceState(null, "", location.pathname + (u.toString() ? "?" + u : ""));
 }
 
@@ -398,6 +416,11 @@ function feedTag(p) {
   if (p.source_feed !== "durham_active") return "";
   return tag("Durham", "durham" + (state.feed.includes("durham_active") ? " active" : ""), "feed:durham_active");
 }
+function coTag(p) {
+  if (!p.contractor) return "";
+  const active = state.q && p.contractor.toLowerCase() === state.q.toLowerCase() ? " active" : "";
+  return tag(p.contractor, "co" + active, p.contractor);
+}
 function hay(p) {
   return [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
 }
@@ -408,6 +431,8 @@ function passFilters(p, i, qok, since, except) {
   if (except !== "feed" && state.feed.length && !state.feed.includes(p.source_feed)) return false;
   if (except !== "workclass" && state.workclass.length && !state.workclass.includes(bucketOfWC(p.work_class))) return false;
   if (except !== "status" && state.status.length && !state.status.includes(bucketOfST(p.status))) return false;
+  if (except !== "contractor" && state.contractor === "yes" && !p.contractor) return false;
+  if (except !== "contractor" && state.contractor === "no" && p.contractor) return false;
   if (except !== "days" && since && new Date(pdate(p) || 0) < since) return false;
   return true;
 }
@@ -418,6 +443,7 @@ function updateCounts(qok, since) {
     ["feed", "g-feed", p => p.source_feed || ""],
     ["workclass", "g-workclass", p => bucketOfWC(p.work_class) || ""],
     ["status", "g-status", p => bucketOfST(p.status) || ""],
+    ["contractor", "g-contractor", p => p.contractor ? "yes" : "no"],
   ];
   for (const [key, gid, of] of groups) {
     const counts = Object.create(null);
@@ -460,7 +486,7 @@ function updateCounts(qok, since) {
 function render() {
   writeURL();
   // Reset the visible-card count whenever the filters change.
-  const sig = JSON.stringify([state.q, state.type, state.feed, state.days, state.sort, state.workclass, state.status]);
+  const sig = JSON.stringify([state.q, state.type, state.feed, state.days, state.sort, state.workclass, state.status, state.contractor]);
   if (sig !== lastSig) { shown = 300; lastSig = sig; }
   const q = state.q.toLowerCase();
   const since = state.days ? Date.now() - Number(state.days) * 864e5 : 0;
@@ -497,6 +523,7 @@ function render() {
         ${wcTag(p)}
         ${feedTag(p)}
         ${stTag(p)}
+        ${coTag(p)}
       </div>
       <details><summary>Details</summary>
         <div style="margin-top:6px">
@@ -546,6 +573,7 @@ buildGroup("g-days", DAYS_OPTS, "days");
 buildGroup("g-sort", SORT_OPTS, "sort");
 buildGroup("g-workclass", WC_BUCKETS, "workclass");
 buildGroup("g-status", ST_BUCKETS, "status");
+buildGroup("g-contractor", CO_OPTS, "contractor");
 document.getElementById("q").addEventListener("input", e => { state.q = e.target.value; render(); });
 document.getElementById("more-btn").addEventListener("click", () => { shown += 300; render(); });
 
