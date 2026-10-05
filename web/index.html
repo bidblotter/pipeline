@@ -12,6 +12,8 @@
 <meta property="og:description" content="Search every building and trade permit filed in Raleigh-Durham. Free — new filings daily.">
 <meta property="og:url" content="https://permitpicker.com/">
 <meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; color: #1c2733; }
@@ -87,6 +89,40 @@
   details summary { cursor: pointer; color: #1463a0; }
   .empty { text-align: center; color: #889; padding: 40px; }
   footer { text-align: center; color: #889; font-size: 12px; padding: 20px; }
+  @media (prefers-color-scheme: dark) {
+    :root { color-scheme: dark; }
+    body { background: #0e1319; color: #dbe4ee; }
+    header, .signup { background: #0d2233; }
+    .stat, .filters, .card { background: #17202b; box-shadow: 0 1px 3px rgba(0,0,0,.45); }
+    .stat small, .flabel, .empty, footer { color: #93a1b5; }
+    .signup input, .signup select, .filters input[type=text] { background: #0e1319; border-color: #2c3a4d; color: #dbe4ee; }
+    .fbtn { background: #1f2a3a; border-color: #2c3a4d; color: #dbe4ee; }
+    .fbtn:hover { border-color: #ffb020; }
+    .fbtn.active { background: #ffb020; border-color: #ffb020; color: #14324a; }
+    .card .addr, .meta, details { color: #a7b4c6; }
+    .meta b { color: #dbe4ee; }
+    .tag { background: #243040; color: #c9d6e6; }
+    .tag:hover { background: #2e3d52; }
+    .tag.trade { background: #123a24; color: #7ce3a5; }
+    .tag.trade:hover { background: #174a2e; }
+    .tag.wc { background: #16283f; color: #8db8f2; }
+    .tag.wc:hover { background: #1d3350; }
+    .tag.st { background: #3a2c12; color: #f2c078; }
+    .tag.st:hover { background: #4a3817; }
+    .tag.durham { background: #2a2140; color: #c4b0f0; }
+    .tag.durham:hover { background: #352a52; }
+    .tag.active { background: #ffb020; border-color: #ffb020; color: #14324a; }
+    .tag.trade.active { background: #2a7a48; border-color: #2a7a48; color: #fff; }
+    .tag.wc.active { background: #2a5da8; border-color: #2a5da8; color: #fff; }
+    .tag.st.active { background: #a86e18; border-color: #a86e18; color: #fff; }
+    .tag.durham.active { background: #5d3fa8; border-color: #5d3fa8; color: #fff; }
+    .btn-group[data-key="type"] .fbtn.active { background: #2a7a48; border-color: #2a7a48; color: #fff; }
+    .btn-group[data-key="workclass"] .fbtn.active { background: #2a5da8; border-color: #2a5da8; color: #fff; }
+    .btn-group[data-key="status"] .fbtn.active { background: #a86e18; border-color: #a86e18; color: #fff; }
+    .btn-group[data-key="feed"] .fbtn.active { background: #5d3fa8; border-color: #5d3fa8; color: #fff; }
+    .val { color: #4ad37f; }
+    details summary { color: #6aa8e0; }
+  }
 </style>
 </head>
 <body>
