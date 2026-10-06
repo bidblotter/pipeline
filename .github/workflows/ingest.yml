@@ -10,6 +10,9 @@ on:
       backfill_days:
         description: "Backfill this many days (0 = use watermarks)"
         default: "0"
+      raleigh_backfill_days:
+        description: "Backfill this many days for Raleigh only (0 = use backfill_days)"
+        default: "0"
       send_digest:
         description: "Send test digest email after export (true/false)"
         default: "false"
@@ -58,7 +61,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          BACKFILL_DAYS: ${{ inputs.backfill_days }}
+          BACKFILL_DAYS: ${{ inputs.raleigh_backfill_days != '0' && inputs.raleigh_backfill_days || inputs.backfill_days }}
         run: python pipeline/raleigh.py
       - name: Export preview data
         env:
