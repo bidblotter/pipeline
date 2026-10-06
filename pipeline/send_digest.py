@@ -4,7 +4,7 @@
 Env: RESEND_API_KEY (GitHub secret in Actions).
 Usage:
   python pipeline/send_digest.py --to you@example.com --subject "Hi"
-      --body-file /tmp/digest.txt [--from onboarding@resend.dev]
+      --body-file /tmp/digest.txt [--from morning@permitpicker.com]
 """
 import argparse
 import json
@@ -19,7 +19,7 @@ def main():
     ap.add_argument("--subject", required=True)
     ap.add_argument("--body-file", required=True)
     ap.add_argument("--from", dest="from_addr",
-                    default="onboarding@resend.dev")
+                    default="morning@permitpicker.com")
     args = ap.parse_args()
 
     api_key = os.environ.get("RESEND_API_KEY")
