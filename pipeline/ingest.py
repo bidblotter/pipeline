@@ -52,7 +52,7 @@ def log(*a):
     print(dt.datetime.now(dt.timezone.utc).strftime("%H:%M:%S"), *a, flush=True)
 
 
-def arcgis_query(base, where, out_fields, order_field, retries=3):
+def arcgis_query(base, where, out_fields, order_field, retries=5):
     """Yield attribute dicts, paginating with resultOffset."""
     offset = 0
     while True:
@@ -255,9 +255,11 @@ def main():
                 pass
             failures.append(name)
     if failures:
-        log(f"failed sources: {failures}")
-        sys.exit(1)
-    log("all sources ok")
+        # A failed source must not kill the whole job: its watermark only
+        # advances on success, so it retries cleanly on the next run, and
+        # the export/deploy steps still run for the sources that succeeded.
+        log(f"WARNING: failed sources (will retry next run): {failures}")
+    log("done")
 
 
 if __name__ == "__main__":
