@@ -196,7 +196,7 @@
   <button id="more-btn" class="fbtn" style="font-size:14px;padding:10px 22px">Show more</button>
   <div id="more-count" style="margin-top:8px;font-size:13px;color:#5a6b7a"></div>
 </div>
-<footer>PermitPicker preview — recent Wake County filings. Public records, refreshed daily.</footer>
+<footer>PermitPicker preview — recent Wake County, Cary &amp; Raleigh filings. Public records, refreshed daily.</footer>
 <script>
 let permits = [];
 const state = { q: "", type: [], feed: [], days: "7", sort: "new", workclass: [], status: [], contractor: "" };
@@ -270,7 +270,7 @@ const bucketOfST = t => ST_TO_BUCKET[t || ""] || "";
 const FEED_OPTS = [
   { id: "", label: "All sources" },
   { id: "wake_building", label: "Wake building" },
-  { id: "wake_trade", label: "Wake trade" },
+  { id: "wake_trade", label: "Raleigh trade" },
   { id: "cary", label: "Cary" },
   { id: "raleigh", label: "Raleigh" },
   // Durham OFF 2026-10-04 (stale-snapshot fix pending) — restore to re-enable.
@@ -609,7 +609,7 @@ document.getElementById("su-form").addEventListener("submit", async e => {
     });
     if (res.ok) {
       msg.className = "ok";
-      msg.textContent = "You're in! Watch your inbox for the morning digest.";
+      msg.textContent = "You're on the list! We'll email you when the digest launches.";
       document.getElementById("su-email").value = "";
     } else {
       const t = await res.text();
