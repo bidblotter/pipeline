@@ -65,6 +65,8 @@ def main():
     ap.add_argument("--trade", required=True)
     ap.add_argument("--days", type=int, default=7)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--brand", default="PermitPicker",
+                    help="Brand name used in subject/footer (PermitPicker or PermitPulse)")
     args = ap.parse_args()
 
     data_path = os.path.join(os.path.dirname(__file__), "..", "web",
@@ -122,9 +124,12 @@ def main():
             L.append(f"  {SITE}?q={kw}&days={args.days}")
             L.append("")
     L.append("---")
-    L.append("PermitPicker — Raleigh permit intelligence. "
+    L.append(f"{args.brand} — Raleigh permit intelligence. "
              "Public records, refreshed daily.")
-    L.append("You're receiving this as a PermitPicker pilot subscriber.")
+    if args.brand == "PermitPicker":
+        L.append("You're receiving this as a PermitPicker pilot subscriber.")
+    else:
+        L.append(f"You're receiving this as a {args.brand} subscriber.")
     text = "\n".join(L).rstrip() + "\n"
 
     if args.out:
@@ -132,10 +137,10 @@ def main():
             f.write(text)
     n, w = len(new_rows), len(week_rows)
     if n:
-        subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — PermitPicker"
+        subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — {args.brand}"
     else:
-        subject = (f"{w} {kw} permits this week — PermitPicker"
-                   if w else f"No new {kw} permits — PermitPicker")
+        subject = (f"{w} {kw} permits this week — {args.brand}"
+                   if w else f"No new {kw} permits — {args.brand}")
     print(f"SUBJECT: {subject}")
 
 
