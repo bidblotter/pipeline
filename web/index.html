@@ -145,8 +145,8 @@
   <div class="stat"><b id="s-updated">–</b><small>last updated</small></div>
 </div>
 <div class="signup">
-  <h2>Get the <span>morning digest</span></h2>
-  <p>New permits in your trade, in your inbox every morning. Free during the pilot.</p>
+  <h2>Try <span>PermitPulse</span> free for 14 days</h2>
+  <p>The morning digest + weekly intel report for your trade, in your inbox. Then $150/mo — cancel anytime.</p>
   <form id="su-form">
     <input type="email" id="su-email" placeholder="you@company.com" required>
     <select id="su-trade">
@@ -611,7 +611,7 @@ document.getElementById("su-form").addEventListener("submit", async e => {
     });
     if (res.ok) {
       msg.className = "ok";
-      msg.textContent = "You're on the list! We'll email you when the digest launches.";
+      msg.textContent = "You're in! We'll send your free-trial invite shortly.";
       document.getElementById("su-email").value = "";
     } else {
       const t = await res.text();
