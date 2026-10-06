@@ -224,7 +224,7 @@ const TRADE_BUCKETS = [
   { id: "electrical", label: "Electrical", types: ["BI_ELEC", "DSINSP - Electrical (Non-Residential)", "DSINSP - Electrical (Residential)", "DSINSP - Online Only Electrical (Non-Residential)", "DSINSP - Online Only Electrical (Residential)", "electrical"] },
   { id: "plumbing", label: "Plumbing", types: ["BI_PLUM", "DSINSP - Plumbing (Non-Residential)", "DSINSP - Plumbing (Residential)", "DSINSP - Online Only Plumbing (Non-Residential)", "DSINSP - Online Only Plumbing (Residential)", "plumbing"] },
   { id: "mechanical", label: "HVAC / Mechanical", types: ["BI_MEC", "DSINSP - Mechanical (Non-Residential)", "DSINSP - Mechanical (Residential)", "DSINSP - Online Only Mechanical (Non-Residential)", "DSINSP - Online Only Mechanical (Residential)", "mechanical"] },
-  { id: "building", label: "Building", types: ["BI_BLD", "Commercial Building", "Residential Building", "Residential Accessory Building Structure", "Manufactured Home Permit", "building"] },
+  { id: "building", label: "Building", types: ["BI_BLD", "Commercial Building", "Residential Building", "Residential Accessory Building Structure", "Manufactured Home Permit", "building", "Building"] },
   { id: "demolition", label: "Demolition", types: ["Demolition Permit", "demolition"] },
   { id: "fire", label: "Fire protection", types: ["FIRE - Fire Protection"] },
   { id: "sitework", label: "Site work", types: ["DSENG - Right of Way", "ENG - Floodplain", "ENG - Land Disturbance (Grading)"] },
@@ -272,13 +272,14 @@ const FEED_OPTS = [
   { id: "wake_building", label: "Wake building" },
   { id: "wake_trade", label: "Wake trade" },
   { id: "cary", label: "Cary" },
+  { id: "raleigh", label: "Raleigh" },
   // Durham OFF 2026-10-04 (stale-snapshot fix pending) — restore to re-enable.
   // { id: "durham_active", label: "Durham" },
 ];
 const DAYS_OPTS = [
   { id: "7", label: "Last 7 days" },
   { id: "30", label: "Last 30 days" },
-  { id: "", label: "All time" },
+  { id: "", label: "Last 90 days" },
 ];
 const SORT_OPTS = [
   { id: "new", label: "Newest first" },
