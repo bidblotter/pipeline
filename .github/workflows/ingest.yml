@@ -121,6 +121,12 @@ jobs:
           else
             echo "no new signups"
           fi
+      - name: Build contractor first-seen lookup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python pipeline/contractor_first_seen.py
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
