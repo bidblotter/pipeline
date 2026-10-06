@@ -95,7 +95,7 @@ def main():
         key=lambda p: p.get("applied_date") or "", reverse=True)
 
     L = []
-    L.append(f"{trade} permits — Raleigh-Durham")
+    L.append(f"{trade} permits — Raleigh")
     L.append(f"{len(new_rows)} new since yesterday · "
              f"{len(new_rows) + len(week_rows)} filed in the last "
              f"{args.days} days")
@@ -122,7 +122,7 @@ def main():
             L.append(f"  {SITE}?q={kw}&days={args.days}")
             L.append("")
     L.append("---")
-    L.append("PermitPicker — Raleigh-Durham permit intelligence. "
+    L.append("PermitPicker — Raleigh permit intelligence. "
              "Public records, refreshed daily.")
     L.append("You're receiving this as a PermitPicker pilot subscriber.")
     text = "\n".join(L).rstrip() + "\n"
