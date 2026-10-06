@@ -417,13 +417,15 @@ function feedTag(p) {
   if (p.source_feed !== "durham_active") return "";
   return tag("Durham", "durham" + (state.feed.includes("durham_active") ? " active" : ""), "feed:durham_active");
 }
+function coName(p) { return p.contractor_display || p.contractor || ""; }
 function coTag(p) {
-  if (!p.contractor) return "";
-  const active = state.q && p.contractor.toLowerCase() === state.q.toLowerCase() ? " active" : "";
-  return tag(p.contractor, "co" + active, "co:" + p.contractor);
+  const n = coName(p);
+  if (!n) return "";
+  const active = state.q && n.toLowerCase() === state.q.toLowerCase() ? " active" : "";
+  return tag(n, "co" + active, "co:" + n);
 }
 function hay(p) {
-  return [p.address, p.city, p.contractor, p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
+  return [p.address, p.city, coName(p), p.description, p.permit_number, p.permit_type, p.work_class, p.status].join(" ").toLowerCase();
 }
 // All active filters except the dimension named by `except` (for faceted counts).
 function passFilters(p, i, qok, since, except) {
@@ -528,7 +530,7 @@ function render() {
       </div>
       <details><summary>Details</summary>
         <div style="margin-top:6px">
-          ${p.contractor ? `Contractor: <b>${esc(p.contractor)}</b><br>` : ""}
+          ${coName(p) ? `Contractor: <b>${esc(coName(p))}</b><br>` : ""}
           ${p.contractor_phone ? `Phone: ${esc(p.contractor_phone)}<br>` : ""}
           ${p.contractor_license ? `License: ${esc(p.contractor_license)}<br>` : ""}
           ${p.permit_type ? `Permit type: ${esc(p.permit_type)}<br>` : ""}
