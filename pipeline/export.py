@@ -12,6 +12,7 @@ import urllib.parse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from ingest import sb, log  # noqa: E402
+from normalize import contractor_key, clean_name, is_contractor  # noqa: E402
 
 FIELDS = ("permit_number,permit_type,work_class,description,status,"
           "applied_date,issued_date,address,city,valuation,contractor,"
@@ -58,6 +59,22 @@ def main():
         if len(chunk) < page:
             break
         offset += page
+    # Contractor normalization (2026-10-05): group by normalized key, display
+    # the most common cleaned variant. Raw `contractor` kept for filtering.
+    from collections import Counter, defaultdict
+    key_names = defaultdict(list)
+    for r in rows:
+        c = (r.get("contractor") or "").strip()
+        if is_contractor(c):
+            key_names[contractor_key(c)].append(c)
+    key_display = {}
+    for k, names in key_names.items():
+        c = Counter(clean_name(n) for n in names if clean_name(n))
+        if c:
+            key_display[k] = c.most_common(1)[0][0]
+    for r in rows:
+        c = (r.get("contractor") or "").strip()
+        r["contractor_display"] = key_display.get(contractor_key(c), c) if is_contractor(c) else ""
     out_dir = os.path.join(os.path.dirname(__file__), "..", "web", "data")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "permits.json")
