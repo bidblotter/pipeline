@@ -45,7 +45,10 @@ def main():
         DURHAM_ON = False
         or_clause = (f"(applied_date.gte.{since_q},issued_date.gte.{since_q}"
                      + (",source_feed.eq.durham_active" if DURHAM_ON else "") + ")")
-        params = (f"?select={FIELDS}&or={or_clause}"
+        # Durham's active snapshot has no real dates (applied_date = first
+        # seen), so date filtering alone can't exclude it — neq it outright.
+        durham_filter = "" if DURHAM_ON else "&source_feed.neq.durham_active"
+        params = (f"?select={FIELDS}&or={or_clause}{durham_filter}"
                   f"&order=applied_date.desc.nullslast,source_feed.asc,"
                   f"permit_number.asc&limit={page}&offset={offset}")
         chunk = sb("permits", params=params)
