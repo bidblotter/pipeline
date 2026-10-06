@@ -53,6 +53,13 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           BACKFILL_DAYS: ${{ inputs.backfill_days }}
         run: python pipeline/cary.py
+      - name: Run Raleigh ingest
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BACKFILL_DAYS: ${{ inputs.backfill_days }}
+        run: python pipeline/raleigh.py
       - name: Export preview data
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
