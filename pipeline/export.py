@@ -56,7 +56,7 @@ def main():
             break
         # TEMP DEBUG 2026-10-06: why is neq not filtering Durham?
         n_dur = sum(1 for r in chunk if r.get("source_feed") == "durham_active")
-        log(f"DEBUG params={params[:200]} chunk={len(chunk)} durham_in_chunk={n_dur}")
+        log(f"DEBUG fullparams={params} chunk={len(chunk)} durham_in_chunk={n_dur}")
         for r in chunk:
             if r.get("source_feed") == "durham_active":
                 r["applied_year"] = durham_applied_year(r.get("permit_number"))
