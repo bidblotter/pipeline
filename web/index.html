@@ -272,7 +272,7 @@ const FEED_OPTS = [
   { id: "wake_building", label: "Wake building" },
   { id: "wake_trade", label: "Raleigh trade" },
   { id: "cary", label: "Cary" },
-  { id: "raleigh", label: "Raleigh" },
+  { id: "raleigh", label: "Raleigh building" },
   // Durham OFF 2026-10-04 (stale-snapshot fix pending) — restore to re-enable.
   // { id: "durham_active", label: "Durham" },
 ];
@@ -536,7 +536,7 @@ function render() {
           ${p.permit_type ? `Permit type: ${esc(p.permit_type)}<br>` : ""}
           ${p.work_class ? `Work class: ${esc(p.work_class)}<br>` : ""}
           ${p.status ? `Status: ${esc(p.status)}<br>` : ""}
-          Source: ${esc(p.source_feed || "")}
+          Source: ${esc((FEED_OPTS.find(o => o.id === p.source_feed) || {}).label || p.source_feed || "")}
         </div>
       </details>
     </div>`).join("");
