@@ -54,18 +54,16 @@ def main():
         chunk = sb("permits", params=params)
         if not chunk:
             break
-        # TEMP DEBUG 2026-10-06: why is neq not filtering Durham?
-        n_dur = sum(1 for r in chunk if r.get("source_feed") == "durham_active")
-        log(f"DEBUG fullparams={params} chunk={len(chunk)} durham_in_chunk={n_dur}")
-        if offset == 0:
-            probe_neq = sb("permits", params="?select=permit_number,source_feed&source_feed.neq.durham_active&limit=5") or []
-            probe_eq = sb("permits", params="?select=permit_number,source_feed&source_feed.eq.durham_active&limit=5") or []
-            log(f"DEBUG probe neq_rows={[r.get('source_feed') for r in probe_neq]}")
-            log(f"DEBUG probe eq_rows={len(probe_eq)} first={[r.get('source_feed') for r in probe_eq[:3]]}")
         for r in chunk:
+            # NOTE 2026-10-06: PostgREST silently ignores source_feed eq/neq
+            # filters on this table (verified live: eq.durham_active returned
+            # wake_building rows), so Durham exclusion is enforced here in
+            # Python. The neq in the query string is kept as a hint only.
+            if not DURHAM_ON and r.get("source_feed") == "durham_active":
+                continue
             if r.get("source_feed") == "durham_active":
                 r["applied_year"] = durham_applied_year(r.get("permit_number"))
-        rows.extend(chunk)
+            rows.append(r)
         log(f"exported {len(rows)} rows so far")
         if len(chunk) < page:
             break
