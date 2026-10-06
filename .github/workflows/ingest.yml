@@ -97,6 +97,15 @@ jobs:
           SUBJECT=$(grep "^SUBJECT: " /tmp/digest_meta.txt | sed 's/^SUBJECT: //')
           [ -z "$SUBJECT" ] && SUBJECT="PermitPicker morning digest: $TRADE"
           python pipeline/send_digest.py --to "$TO" --subject "$SUBJECT" --body-file /tmp/digest.txt
+      - name: Send customer digests
+        if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_CUSTOMERS: ${{ secrets.DIGEST_CUSTOMERS }}
+        run: |
+          python pipeline/send_customer_digests.py
       - name: Notify new signups
         if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
         env:
