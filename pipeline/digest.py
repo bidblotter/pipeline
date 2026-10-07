@@ -166,7 +166,16 @@ def rank_contractors(trade_rows, week_rows_all, first_seen, wk_start, prev_start
     return call_first, info
 
 
-def permit_card(p, badge=None):
+VCARD_BASE = "https://permitpicker.com/data/vcards/"
+
+
+def vcard_url(key):
+    if not key:
+        return None
+    return VCARD_BASE + urllib.parse.quote(key, safe="") + ".vcf"
+
+
+def permit_card(p, badges=None, key=""):
     co = clean(p.get("contractor"))
     addr = clean(p.get("address"))
     city = clean((p.get("city") or "").title())
@@ -175,47 +184,44 @@ def permit_card(p, badge=None):
     if len(desc) > 90:
         desc = desc[:90].rsplit(" ", 1)[0] + "\u2026"
     val = money(p.get("valuation"))
+    filed = (p.get("applied_date") or "")[:10]
     phone = norm_phone(p.get("contractor_phone"))
     tel = tel_link(p.get("contractor_phone"))
     maps_q = urllib.parse.quote(loc) if loc else ""
-    phone_html = (f'<a href="{tel}" style="display:inline-block;background:#0d7a6f;color:#ffffff !important;'
-                  f'text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px;font-size:15px;">'
-                  f'\u260e {esc(phone)}</a>' if tel and phone != "\u2014"
-                else (f'<span style="color:#5b6b73;">{esc(phone)}</span>' if phone and phone != "\u2014" else ""))
+    call_btn = (f'<a href="{tel}" style="display:inline-block;background:#0d7a6f;color:#ffffff !important;'
+                f'text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px;font-size:15px;">'
+                f'\u260e {esc(phone)}</a>' if tel and phone != "\u2014" else "")
+    vc = vcard_url(key)
+    vcard_btn = (f'<a href="{vc}" style="display:inline-block;background:#ffffff;color:#0d7a6f !important;'
+                 f'text-decoration:none;font-weight:bold;padding:9px 16px;border-radius:8px;font-size:14px;'
+                 f'border:1.5px solid #0d7a6f;margin-left:8px;">+ Add to contacts</a>'
+                 if vc and tel else "")
     badge_html = (f'<div style="margin-top:6px;font-size:12.5px;color:#0d6e64;">'
-                  f'{" &nbsp;\u2022&nbsp; ".join(esc(b) for b in badge)}</div>' if badge else "")
+                  f'{" &nbsp;\u2022&nbsp; ".join(esc(b) for b in badges)}</div>' if badges else "")
     maps_html = (f' &nbsp;<a href="https://www.google.com/maps/search/?api=1&query={maps_q}" '
                  f'style="color:#0d7a6f;font-size:12.5px;">map</a>' if maps_q else "")
-    val_html = f" &nbsp;\u00b7&nbsp; {esc(val)}" if val else ""
+    meta_bits = [f"Filed {esc(filed)}" if filed else "", esc(val) if val else ""]
+    meta = " &nbsp;\u00b7&nbsp; ".join(b for b in meta_bits if b)
+    name = (display_for(contractor_key(co), [co])[:40] if co and is_contractor(co)
+            else (co or "No contractor listed"))
     return (f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;background:#ffffff;'
             f'border:1px solid #dde7e7;border-radius:10px;"><tr><td style="padding:14px 16px;">'
-            f'<div style="font-size:16px;font-weight:bold;color:#102e36;">{esc(display_for(contractor_key(co), [co])[:40] if co and is_contractor(co) else (co or "No contractor listed"))}</div>'
-            f'<div style="font-size:13.5px;color:#3d4d54;margin-top:4px;">{esc(loc)}{maps_html}{val_html}</div>'
+            f'<div style="font-size:16px;font-weight:bold;color:#102e36;">{esc(name)}</div>'
+            f'<div style="font-size:13.5px;color:#3d4d54;margin-top:4px;">{esc(loc)}{maps_html}'
+            f'{" &nbsp;\u00b7&nbsp; " + meta if meta else ""}</div>'
             f'<div style="font-size:13.5px;color:#5b6b73;margin-top:4px;">{esc(desc)}</div>'
             f'{badge_html}'
-            f'<div style="margin-top:10px;">{phone_html}</div>'
+            f'<div style="margin-top:10px;">{call_btn}{vcard_btn}</div>'
             f'</td></tr></table>')
 
 
-def build_html(brand, trade, date_label, call_first_permits, info, new_rest, week_rest,
-               n_new, n_week, site_url):
-    sec_title = ('font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;'
-                 'color:#0d7a6f;margin:22px 0 10px;')
-    body_cards = []
-    if call_first_permits:
-        body_cards.append(f'<div style="{sec_title}">\u2605 Call first — {len(call_first_permits)}</div>')
-        for p, k in call_first_permits:
-            body_cards.append(permit_card(p, info[k]["badges"]))
-    if new_rest:
-        body_cards.append(f'<div style="{sec_title}">New since yesterday</div>')
-        for p in new_rest:
-            body_cards.append(permit_card(p))
-    if week_rest:
-        body_cards.append(f'<div style="{sec_title}">Earlier this week</div>')
-        for p in week_rest:
-            body_cards.append(permit_card(p))
-    if not (call_first_permits or new_rest or week_rest):
-        body_cards.append('<p style="color:#5b6b73;">No new filings since yesterday.</p>')
+def build_html(brand, trade, date_label, ordered, n_new, n_week, site_url):
+    """ordered: list of (permit, contractor_key, badges) — already ranked."""
+    cards = []
+    for p, k, badges in ordered:
+        cards.append(permit_card(p, badges, k))
+    if not cards:
+        cards.append('<p style="color:#5b6b73;">No new filings since yesterday.</p>')
     return (f'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f2f6f6;">'
             f'<div style="max-width:600px;margin:0 auto;padding:20px 12px;">'
             f'<div style="background:#102e36;border-radius:12px;padding:22px 20px;margin-bottom:6px;">'
@@ -224,8 +230,8 @@ def build_html(brand, trade, date_label, call_first_permits, info, new_rest, wee
             f'</div>'
             f'<div style="background:#ffffff;border:1px solid #dde7e7;border-radius:12px;padding:16px 18px;margin:12px 0;">'
             f'<div style="font-size:15px;color:#102e36;"><b>{n_new}</b> new since yesterday &nbsp;\u00b7&nbsp; '
-            f'<b>{n_week}</b> filed in the last 7 days</div></div>'
-            f'{"".join(body_cards)}'
+            f'<b>{n_week}</b> filed in the last 7 days &nbsp;\u00b7&nbsp; ranked by priority</div></div>'
+            f'{"".join(cards)}'
             f'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #dde7e7;font-size:12px;color:#8a9aa1;">'
             f'{esc(brand)} — Raleigh permit intelligence. Public records, refreshed daily.<br>'
             f'You\u2019re receiving this as a {esc(brand)} subscriber. '
@@ -328,21 +334,22 @@ def main():
         key_of = lambda p: (contractor_key((p.get("contractor") or "").strip())
                             if (p.get("contractor") or "").strip()
                             and is_contractor((p.get("contractor") or "").strip()) else "")
-        call_permits, seen_p = [], set()
+        ordered, seen_p = [], set()
         for p in new_rows + week_rows:
             k = key_of(p)
             if k in call_keys and p.get("permit_number") not in seen_p:
-                call_permits.append((p, k))
+                ordered.append((p, k, info[k]["badges"]))
                 seen_p.add(p.get("permit_number"))
-        rest_new = [p for p in new_rows if p.get("permit_number") not in seen_p]
-        rest_week = [p for p in week_rows if p.get("permit_number") not in seen_p]
+        for p in new_rows + week_rows:
+            if p.get("permit_number") not in seen_p:
+                ordered.append((p, key_of(p), []))
+                seen_p.add(p.get("permit_number"))
         date_label = now.strftime("%b %-d, %Y")
-        html_doc = build_html(args.brand, trade, date_label, call_permits, info,
-                              rest_new, rest_week, n, n + w, SITE)
+        html_doc = build_html(args.brand, trade, date_label, ordered,
+                              n, n + w, SITE)
         with open(args.html_out, "w") as f:
             f.write(html_doc)
-        print(f"HTML call sheet: {args.html_out} "
-              f"({len(call_permits)} call-first, {len(rest_new)+len(rest_week)} more)")
+        print(f"HTML call sheet: {args.html_out} ({len(ordered)} leads, ranked)")
 
     if n:
         subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — {args.brand}"
