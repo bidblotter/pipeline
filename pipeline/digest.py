@@ -230,7 +230,7 @@ def build_html(brand, trade, date_label, ordered, n_new, n_week, site_url):
             f'</div>'
             f'<div style="background:#ffffff;border:1px solid #dde7e7;border-radius:12px;padding:16px 18px;margin:12px 0;">'
             f'<div style="font-size:15px;color:#102e36;"><b>{n_new}</b> new since yesterday &nbsp;\u00b7&nbsp; '
-            f'<b>{n_week}</b> filed in the last 7 days &nbsp;\u00b7&nbsp; ranked by priority</div></div>'
+            f'<b>{n_week}</b> filed in the last 7 days &nbsp;\u00b7&nbsp; new and active first</div></div>'
             f'{"".join(cards)}'
             f'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #dde7e7;font-size:12px;color:#8a9aa1;">'
             f'{esc(brand)} — Raleigh permit intelligence. Public records, refreshed daily.<br>'
