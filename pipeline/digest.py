@@ -175,6 +175,23 @@ def vcard_url(key):
     return VCARD_BASE + urllib.parse.quote(key, safe="") + ".vcf"
 
 
+def badge_pills(badges):
+    """Render context badges as pills; the surging-mover pill is prominent."""
+    pills = []
+    for b in badges or []:
+        if "vs " in b and "usual" in b:
+            pills.append(
+                '<span style="display:inline-block;background:#0d7a6f;color:#ffffff;'
+                'font-weight:bold;font-size:12.5px;padding:5px 12px;border-radius:20px;'
+                'margin:2px 6px 2px 0;">&#9650; ' + esc(b) + '</span>')
+        else:
+            pills.append(
+                '<span style="display:inline-block;background:#d9efec;color:#0b5f56;'
+                'font-weight:bold;font-size:12.5px;padding:5px 12px;border-radius:20px;'
+                'margin:2px 6px 2px 0;">' + esc(b) + '</span>')
+    return ('<div style="margin-top:9px;">' + "".join(pills) + '</div>' if pills else "")
+
+
 def permit_card(p, badges=None, key=""):
     co = clean(p.get("contractor"))
     addr = clean(p.get("address"))
@@ -196,8 +213,6 @@ def permit_card(p, badges=None, key=""):
                  f'text-decoration:none;font-weight:bold;padding:9px 16px;border-radius:8px;font-size:14px;'
                  f'border:1.5px solid #0d7a6f;margin-left:8px;">+ Add to contacts</a>'
                  if vc and tel else "")
-    badge_html = (f'<div style="margin-top:6px;font-size:12.5px;color:#0d6e64;">'
-                  f'{" &nbsp;\u2022&nbsp; ".join(esc(b) for b in badges)}</div>' if badges else "")
     maps_html = (f' &nbsp;<a href="https://www.google.com/maps/search/?api=1&query={maps_q}" '
                  f'style="color:#0d7a6f;font-size:12.5px;">map</a>' if maps_q else "")
     meta_bits = [f"Filed {esc(filed)}" if filed else "", esc(val) if val else ""]
@@ -210,7 +225,7 @@ def permit_card(p, badges=None, key=""):
             f'<div style="font-size:13.5px;color:#3d4d54;margin-top:4px;">{esc(loc)}{maps_html}'
             f'{" &nbsp;\u00b7&nbsp; " + meta if meta else ""}</div>'
             f'<div style="font-size:13.5px;color:#5b6b73;margin-top:4px;">{esc(desc)}</div>'
-            f'{badge_html}'
+            f'{badge_pills(badges)}'
             f'<div style="margin-top:10px;">{call_btn}{vcard_btn}</div>'
             f'</td></tr></table>')
 
