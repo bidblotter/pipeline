@@ -20,6 +20,8 @@ def main():
     ap.add_argument("--body-file", required=True)
     ap.add_argument("--from", dest="from_addr",
                     default="morning@permitpicker.com")
+    ap.add_argument("--html-file", default=None,
+                    help="Optional HTML body; sent as multipart with the text version")
     args = ap.parse_args()
 
     api_key = os.environ.get("RESEND_API_KEY")
@@ -36,6 +38,10 @@ def main():
         "subject": args.subject,
         "text": text,
     }
+    if args.html_file:
+        with open(args.html_file) as f:
+            payload["html"] = f.read()
+        print(f"send_digest: html_bytes={len(payload['html'])}", flush=True)
     req = urllib.request.Request(
         "https://api.resend.com/emails",
         data=json.dumps(payload).encode(),
