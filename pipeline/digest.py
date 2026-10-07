@@ -215,13 +215,18 @@ def permit_card(p, badges=None, key=""):
             f'</td></tr></table>')
 
 
-def build_html(brand, trade, date_label, ordered, n_new, n_week, site_url):
-    """ordered: list of (permit, contractor_key, badges) — already ranked."""
-    cards = []
-    for p, k, badges in ordered:
-        cards.append(permit_card(p, badges, k))
-    if not cards:
-        cards.append('<p style="color:#5b6b73;">No new filings since yesterday.</p>')
+def build_html(brand, trade, date_label, sections, n_new, n_week, site_url):
+    """sections: list of (title, [(permit, contractor_key, badges)])."""
+    parts = []
+    for title, items in sections:
+        if not items:
+            continue
+        cards = "".join(permit_card(p, badges, k) for p, k, badges in items)
+        parts.append(
+            f'<div style="font-size:17px;font-weight:bold;color:#102e36;'
+            f'margin:20px 0 10px;">{esc(title)}</div>{cards}')
+    if not parts:
+        parts.append('<p style="color:#5b6b73;">No new filings since yesterday.</p>')
     return (f'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f2f6f6;">'
             f'<div style="max-width:600px;margin:0 auto;padding:20px 12px;">'
             f'<div style="background:#102e36;border-radius:12px;padding:22px 20px;margin-bottom:6px;">'
@@ -230,8 +235,8 @@ def build_html(brand, trade, date_label, ordered, n_new, n_week, site_url):
             f'</div>'
             f'<div style="background:#ffffff;border:1px solid #dde7e7;border-radius:12px;padding:16px 18px;margin:12px 0;">'
             f'<div style="font-size:15px;color:#102e36;"><b>{n_new}</b> new since yesterday &nbsp;\u00b7&nbsp; '
-            f'<b>{n_week}</b> filed in the last 7 days &nbsp;\u00b7&nbsp; new and active first</div></div>'
-            f'{"".join(cards)}'
+            f'<b>{n_week}</b> filed in the last 7 days</div></div>'
+            f'{"".join(parts)}'
             f'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #dde7e7;font-size:12px;color:#8a9aa1;">'
             f'{esc(brand)} — Raleigh permit intelligence. Public records, refreshed daily.<br>'
             f'You\u2019re receiving this as a {esc(brand)} subscriber. '
@@ -330,26 +335,39 @@ def main():
                       if matches(x) and prev_start_s <= (x.get("applied_date") or "") < wk_start_s]
         call_keys, info = rank_contractors(trade_week, trade_prev, first_seen,
                                            wk_start_s, prev_start_s)
-        # permits grouped for the call-first section (newest first)
+        # permits grouped into sections (each newest first)
         key_of = lambda p: (contractor_key((p.get("contractor") or "").strip())
                             if (p.get("contractor") or "").strip()
                             and is_contractor((p.get("contractor") or "").strip()) else "")
-        ordered, seen_p = [], set()
-        for p in new_rows + week_rows:
+        new_keys = {k for k, v in info.items() if v["is_new"]}
+        seen_p = set()
+        sec_new, sec_today, sec_week = [], [], []
+        for p in sorted(new_rows + week_rows,
+                        key=lambda r: r.get("applied_date") or "", reverse=True):
+            pn = p.get("permit_number")
+            if pn in seen_p:
+                continue
+            seen_p.add(pn)
             k = key_of(p)
-            if k in call_keys and p.get("permit_number") not in seen_p:
-                ordered.append((p, k, info[k]["badges"]))
-                seen_p.add(p.get("permit_number"))
-        for p in new_rows + week_rows:
-            if p.get("permit_number") not in seen_p:
-                ordered.append((p, key_of(p), []))
-                seen_p.add(p.get("permit_number"))
+            badges = [b for b in info.get(k, {}).get("badges", [])]
+            if k in new_keys:
+                badges = [b for b in badges if b != "First seen in our records"]
+                sec_new.append((p, k, badges))
+            elif p in new_rows:
+                sec_today.append((p, k, badges))
+            else:
+                sec_week.append((p, k, badges))
+        sections = [("New to our records", sec_new),
+                    ("New today", sec_today),
+                    ("Earlier this week", sec_week)]
         date_label = now.strftime("%b %-d, %Y")
-        html_doc = build_html(args.brand, trade, date_label, ordered,
+        html_doc = build_html(args.brand, trade, date_label, sections,
                               n, n + w, SITE)
         with open(args.html_out, "w") as f:
             f.write(html_doc)
-        print(f"HTML call sheet: {args.html_out} ({len(ordered)} leads, ranked)")
+        print(f"HTML call sheet: {args.html_out} "
+              f"({len(sec_new)} new to records, {len(sec_today)} new today, "
+              f"{len(sec_week)} earlier this week)")
 
     if n:
         subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — {args.brand}"
