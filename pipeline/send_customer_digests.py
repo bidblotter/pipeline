@@ -56,7 +56,7 @@ def main():
         run(os.path.join(HERE, "send_digest.py"), "--to", email,
             "--subject", subject, "--body-file", body,
             "--html-file", html_body,
-            "--from", "morning@permitpicker.com")
+            "--from", "PermitPicker <morning@permitpicker.com>")
         print(f"customer digest sent to {email} (trade={trade} days={days})")
 
 
