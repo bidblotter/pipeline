@@ -93,6 +93,10 @@ jobs:
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
+          # No weekend sends (customer timezone)
+          if [ "$(TZ=America/New_York date +%u)" -gt 5 ]; then
+            echo "weekend — skipping free digest"; exit 0
+          fi
           TO="${{ inputs.digest_to }}"
           TRADE="${{ inputs.digest_trade }}"
           DAYS="${{ inputs.digest_days }}"
@@ -113,6 +117,10 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DIGEST_CUSTOMERS: ${{ secrets.DIGEST_CUSTOMERS }}
         run: |
+          # No weekend sends (customer timezone)
+          if [ "$(TZ=America/New_York date +%u)" -gt 5 ]; then
+            echo "weekend — skipping customer digests"; exit 0
+          fi
           python pipeline/send_customer_digests.py
       - name: Send weekly report (manual)
         if: ${{ inputs.weekly_to != '' }}
