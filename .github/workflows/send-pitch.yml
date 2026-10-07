@@ -47,8 +47,9 @@ jobs:
         run: |
           ATTACH_ARGS=""
           if [ "${{ inputs.attach_sample }}" = "true" ]; then
-            cp web/data/permits.json /tmp/pp.json
-            cp web/data/first_seen.json /tmp/first_seen.json
+            # Published data (deployed by the daily ingest; fresher than git).
+            curl -sf -o /tmp/pp.json https://permitpicker.com/data/permits.json
+            curl -sf -o /tmp/first_seen.json https://permitpicker.com/data/first_seen.json
             python pipeline/weekly_report.py --no-sample --teaser-rows 12 \
               --out /tmp/pitch-sample.html \
               --src /tmp/pp.json --first-seen /tmp/first_seen.json
