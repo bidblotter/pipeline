@@ -44,10 +44,10 @@ def main():
             print(f"customer #{i}: bad email {email!r} — skipping")
             continue
         body = f"/tmp/customer_digest_{i}.txt"
-        meta = f"/tmp/customer_digest_{i}_meta.txt"
+        html_body = f"/tmp/customer_digest_{i}.html"
         out = run(os.path.join(HERE, "digest.py"), "--trade", trade,
                   "--days", days, "--brand", "PermitPulse",
-                  "--out", body)
+                  "--out", body, "--html-out", html_body)
         subject = "PermitPulse daily digest"
         for line in out.splitlines():
             if line.startswith("SUBJECT: "):
@@ -55,6 +55,7 @@ def main():
                 break
         run(os.path.join(HERE, "send_digest.py"), "--to", email,
             "--subject", subject, "--body-file", body,
+            "--html-file", html_body,
             "--from", "morning@permitpicker.com")
         print(f"customer digest sent to {email} (trade={trade} days={days})")
 
