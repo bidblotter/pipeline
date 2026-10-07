@@ -13,6 +13,8 @@ ap.add_argument('--no-sample', dest='sample', action='store_false',
 ap.add_argument('--out', required=True)
 ap.add_argument('--src', default='/tmp/pp.json')
 ap.add_argument('--first-seen', default='/tmp/first_seen.json')
+ap.add_argument('--teaser-rows', type=int, default=0,
+                help='Pitch sample: show only N lead-table rows, then a teaser row')
 args = ap.parse_args()
 
 SRC = args.src
@@ -161,12 +163,22 @@ def val_cell(r):
 
 wk_names = _key_rows(this_wk)
 lead_rows = []
-for r in sorted(this_wk, key=lambda r: r.get('applied_date') or '', reverse=True):
+week_sorted = sorted(this_wk, key=lambda r: r.get('applied_date') or '', reverse=True)
+if args.teaser_rows and len(week_sorted) > args.teaser_rows:
+    shown = week_sorted[:args.teaser_rows]
+    hidden = len(week_sorted) - args.teaser_rows
+else:
+    shown, hidden = week_sorted, 0
+for r in shown:
     lead_rows.append(
         f"<tr><td>{esc((r.get('applied_date') or '')[:10])}</td><td>{esc(clean_text(r.get('address')))}</td>"
         f"<td>{esc(clean_text((r.get('city') or '').title()))}</td><td>{esc(clean_text(r.get('description'), 60))}</td>"
         f"<td data-v='{esc(r.get('valuation') or 0)}'>{val_cell(r)}</td><td>{esc(disp_one(r.get('contractor'), wk_names))}</td>"
         f"<td>{tel_cell(r.get('contractor_phone'))}</td></tr>")
+if hidden:
+    lead_rows.append(
+        f"<tr><td colspan=7 style='text-align:center;color:#0d7a6f;font-weight:bold;'>"
+        f"…plus {hidden} more permits in the full briefing</td></tr>")
 
 new_html = ''.join(
     f"<tr><td>{esc(display_name(by_c[c]))}</td><td>{tel_cell_raw(phone(by_c[c]))}</td>"
