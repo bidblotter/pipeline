@@ -19,7 +19,7 @@ def main():
     ap.add_argument("--subject", required=True)
     ap.add_argument("--body-file", required=True)
     ap.add_argument("--from", dest="from_addr",
-                    default="morning@permitpicker.com")
+                    default="PermitPicker <morning@permitpicker.com>")
     ap.add_argument("--html-file", default=None,
                     help="Optional HTML body; sent as multipart with the text version")
     ap.add_argument("--attach", action="append", default=[],
