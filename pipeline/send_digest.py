@@ -24,6 +24,8 @@ def main():
                     help="Optional HTML body; sent as multipart with the text version")
     ap.add_argument("--attach", action="append", default=[],
                     help="Attach a file (repeatable); sent base64 via Resend")
+    ap.add_argument("--reply-to", default=None,
+                    help="Reply-To address (replies go here instead of the From address)")
     args = ap.parse_args()
 
     api_key = os.environ.get("RESEND_API_KEY")
@@ -40,6 +42,9 @@ def main():
         "subject": args.subject,
         "text": text,
     }
+    if args.reply_to:
+        payload["reply_to"] = args.reply_to
+        print(f"send_digest: reply_to={args.reply_to}", flush=True)
     if args.html_file:
         with open(args.html_file) as f:
             payload["html"] = f.read()
