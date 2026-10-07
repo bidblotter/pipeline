@@ -90,7 +90,9 @@ jobs:
           TO="${{ inputs.digest_to }}"
           TRADE="${{ inputs.digest_trade }}"
           DAYS="${{ inputs.digest_days }}"
-          [ -z "$TO" ] && TO="permitpicker@gmail.com"
+          # Free digest is opt-in: only sends when digest_to is passed on dispatch.
+          # (Customer digests send separately via DIGEST_CUSTOMERS.)
+          [ -z "$TO" ] && { echo "no digest_to input — skipping free digest"; exit 0; }
           [ -z "$TRADE" ] && TRADE="electrical"
           [ -z "$DAYS" ] && DAYS="7"
           python pipeline/digest.py --trade "$TRADE" --days "$DAYS" --out /tmp/digest.txt > /tmp/digest_meta.txt
