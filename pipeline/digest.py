@@ -228,7 +228,8 @@ def permit_card(p, badges=None, key=""):
             f'</td></tr></table>')
 
 
-def build_html(brand, trade, date_label, sections, n_new, n_week, site_url):
+def build_html(brand, trade, date_label, sections, n_new, n_week, site_url,
+               new_label="new since yesterday"):
     """sections: list of (title, [(permit, contractor_key, badges)])."""
     parts = []
     for title, items in sections:
@@ -247,7 +248,7 @@ def build_html(brand, trade, date_label, sections, n_new, n_week, site_url):
             f'<div style="font-size:13px;color:#b9cdc9;margin-top:4px;">{esc(trade)} permits — Raleigh &middot; {esc(date_label)}</div>'
             f'</div>'
             f'<div style="background:#ffffff;border:1px solid #dde7e7;border-radius:12px;padding:16px 18px;margin:12px 0;">'
-            f'<div style="font-size:15px;color:#102e36;"><b>{n_new}</b> new since yesterday &nbsp;\u00b7&nbsp; '
+            f'<div style="font-size:15px;color:#102e36;"><b>{n_new}</b> {esc(new_label.lower())} &nbsp;\u00b7&nbsp; '
             f'<b>{n_week}</b> filed in the last 7 days</div></div>'
             f'{"".join(parts)}'
             f'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #dde7e7;font-size:12px;color:#8a9aa1;">'
@@ -274,7 +275,12 @@ def main():
         permits = json.load(f)["permits"]
 
     now = dt.datetime.now(dt.timezone.utc)
-    day_ago = (now - dt.timedelta(hours=24)).isoformat()
+    # No sends on weekends, so Monday's digest looks back to Friday's send.
+    from zoneinfo import ZoneInfo
+    is_monday = now.astimezone(ZoneInfo("America/New_York")).weekday() == 0
+    lookback_h = 72 if is_monday else 24
+    new_label = "New since Friday" if is_monday else "New today"
+    day_ago = (now - dt.timedelta(hours=lookback_h)).isoformat()
     week_ago = (now - dt.timedelta(days=args.days)).isoformat()
     kw = args.trade.lower()
     trade = args.trade.title()
@@ -297,7 +303,7 @@ def main():
 
     L = []
     L.append(f"{trade} permits — Raleigh")
-    L.append(f"{len(new_rows)} new since yesterday · "
+    L.append(f"{len(new_rows)} {new_label.lower()} · "
              f"{len(new_rows) + len(week_rows)} filed in the last "
              f"{args.days} days")
     L.append("")
@@ -371,11 +377,11 @@ def main():
             else:
                 sec_week.append((p, k, badges))
         sections = [("New to our records", sec_new),
-                    ("New today", sec_today),
+                    (new_label, sec_today),
                     ("Earlier this week", sec_week)]
         date_label = now.strftime("%b %-d, %Y")
         html_doc = build_html(args.brand, trade, date_label, sections,
-                              n, n + w, SITE)
+                              n, n + w, SITE, new_label.lower())
         with open(args.html_out, "w") as f:
             f.write(html_doc)
         print(f"HTML call sheet: {args.html_out} "
