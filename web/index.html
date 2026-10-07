@@ -206,7 +206,7 @@ function toggleIn(arr, v) {
   const i = arr.indexOf(v);
   if (i >= 0) arr.splice(i, 1); else arr.push(v);
 }
-let shown = 300, lastSig = "";
+let shown = 50, lastSig = "";
 const money = n => n == null ? "–" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0});
 const dstr = s => s ? s.slice(0, 10) : "–";
 function dateLine(p) {
@@ -490,7 +490,7 @@ function render() {
   writeURL();
   // Reset the visible-card count whenever the filters change.
   const sig = JSON.stringify([state.q, state.type, state.feed, state.days, state.sort, state.workclass, state.status, state.contractor]);
-  if (sig !== lastSig) { shown = 300; lastSig = sig; }
+  if (sig !== lastSig) { shown = 50; lastSig = sig; }
   const q = state.q.toLowerCase();
   const since = state.days ? Date.now() - Number(state.days) * 864e5 : 0;
   const qok = new Array(permits.length);
