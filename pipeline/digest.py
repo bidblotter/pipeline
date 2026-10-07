@@ -208,11 +208,9 @@ def permit_card(p, badges=None, key=""):
     call_btn = (f'<a href="{tel}" style="display:inline-block;background:#0d7a6f;color:#ffffff !important;'
                 f'text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px;font-size:15px;">'
                 f'\u260e {esc(phone)}</a>' if tel and phone != "\u2014" else "")
-    vc = vcard_url(key)
-    vcard_btn = (f'<a href="{vc}" style="display:inline-block;background:#ffffff;color:#0d7a6f !important;'
-                 f'text-decoration:none;font-weight:bold;padding:9px 16px;border-radius:8px;font-size:14px;'
-                 f'border:1.5px solid #0d7a6f;margin-left:8px;">+ Add to contacts</a>'
-                 if vc and tel else "")
+    # Parked 2026-10-07 (Hartland): "+ Add to contacts" button hidden until
+    # contact info is richer. vCards still build daily in the workflow.
+    vcard_btn = ""
     maps_html = (f' &nbsp;<a href="https://www.google.com/maps/search/?api=1&query={maps_q}" '
                  f'style="color:#0d7a6f;font-size:12.5px;">map</a>' if maps_q else "")
     meta_bits = [f"Filed {esc(filed)}" if filed else "", esc(val) if val else ""]
