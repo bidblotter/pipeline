@@ -22,6 +22,8 @@ def main():
                     default="morning@permitpicker.com")
     ap.add_argument("--html-file", default=None,
                     help="Optional HTML body; sent as multipart with the text version")
+    ap.add_argument("--attach", action="append", default=[],
+                    help="Attach a file (repeatable); sent base64 via Resend")
     args = ap.parse_args()
 
     api_key = os.environ.get("RESEND_API_KEY")
@@ -42,6 +44,16 @@ def main():
         with open(args.html_file) as f:
             payload["html"] = f.read()
         print(f"send_digest: html_bytes={len(payload['html'])}", flush=True)
+    if args.attach:
+        import base64
+        payload["attachments"] = []
+        for path in args.attach:
+            with open(path, "rb") as f:
+                content = base64.b64encode(f.read()).decode()
+            payload["attachments"].append(
+                {"filename": os.path.basename(path), "content": content})
+            print(f"send_digest: attached {path} "
+                  f"({len(content) * 3 // 4 // 1024}KB)", flush=True)
     req = urllib.request.Request(
         "https://api.resend.com/emails",
         data=json.dumps(payload).encode(),
