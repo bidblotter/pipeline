@@ -127,6 +127,9 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           python pipeline/contractor_first_seen.py
+      - name: Build contractor vCards
+        run: |
+          python pipeline/build_vcards.py
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
