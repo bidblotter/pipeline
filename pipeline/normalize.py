@@ -31,9 +31,12 @@ ALIASES = {
 def _dba_resolve(name):
     """'MOF dba: dba Michael & Son Services of NC' -> 'Michael & Son Services of NC'."""
     if re.search(r'\bdba\b', name, re.I):
-        parts = re.split(r'\bdba\b', name, flags=re.I)
-        # DBA at the end ('CUSTOM AIR CONDITIONING DBA') -> keep the front part
-        name = parts[-1].strip(' :') or parts[0]
+        parts = [p.strip(' :()') for p in re.split(r'\bdba\b', name, flags=re.I)]
+        # Prefer the last substantial part (the DBA trade name);
+        # fall back to the front when the tail is empty or just punctuation.
+        # DBA at the end ('CUSTOM AIR CONDITIONING DBA') -> keep the front part.
+        cands = [c for c in reversed(parts) if re.search(r'[A-Za-z]{2,}', c)]
+        name = cands[0] if cands else parts[0]
     return name.strip(' :')
 
 
