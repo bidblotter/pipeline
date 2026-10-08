@@ -1,9 +1,10 @@
 name: daily-permit-ingest
 
 on:
-  schedule:
-    # 11:00 UTC = 7:00 AM EDT / 6:00 AM EST
-    - cron: "0 11 * * *"
+  # NOTE (2026-10-08): GitHub's native schedule proved unreliable — it missed
+  # 10-04/05/06 entirely, then fired 6.5h late on 10-08 causing a duplicate
+  # digest. The daily trigger is cron-job.org (6:00 AM EDT) via
+  # workflow_dispatch. Do NOT re-add a schedule: block here.
   workflow_dispatch:
     inputs:
       backfill_days:
@@ -89,7 +90,7 @@ jobs:
             echo "SUPABASE_ANON_KEY not set — signup form will be inert"
           fi
       - name: Send digest
-        if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
+        if: ${{ inputs.send_digest == 'true' }}
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
@@ -110,7 +111,7 @@ jobs:
           [ -z "$SUBJECT" ] && SUBJECT="PermitPicker morning digest: $TRADE"
           python pipeline/send_digest.py --to "$TO" --subject "$SUBJECT" --body-file /tmp/digest.txt
       - name: Send customer digests
-        if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
+        if: ${{ inputs.send_digest == 'true' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -147,7 +148,7 @@ jobs:
             --subject "Your weekly PermitPulse briefing — electrical" \
             --body-file /tmp/weekly-body.txt --attach /tmp/weekly-report.pdf
       - name: Notify new signups
-        if: ${{ inputs.send_digest == 'true' || github.event_name == 'schedule' }}
+        if: ${{ inputs.send_digest == 'true' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
