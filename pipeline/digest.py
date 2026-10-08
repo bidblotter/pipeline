@@ -239,7 +239,7 @@ def permit_card(p, badges=None, key=""):
 
 
 def build_html(brand, trade, date_label, sections, n_new, n_week, site_url,
-               new_label="new since yesterday"):
+               new_label="new since yesterday", n_records=0):
     """sections: list of (title, [(permit, contractor_key, badges)])."""
     parts = []
     for title, items in sections:
@@ -261,7 +261,8 @@ def build_html(brand, trade, date_label, sections, n_new, n_week, site_url,
             f'<div style="font-size:13px;color:#b9cdc9;margin-top:4px;">{esc(trade)} permits — Raleigh &middot; {esc(date_label)}</div>'
             f'</div>'
             f'<div style="background:#ffffff;border:1px solid #dde7e7;border-radius:12px;padding:16px 18px;margin:12px 0;">'
-            f'<div style="font-size:15px;color:#102e36;"><b>{n_new}</b> {esc(new_label.lower())} &nbsp;\u00b7&nbsp; '
+            f'<div style="font-size:15px;color:#102e36;"><b>{n_records}</b> new to our records &nbsp;\u00b7&nbsp; '
+            f'<b>{n_new}</b> {esc(new_label.lower())} &nbsp;\u00b7&nbsp; '
             f'<b>{n_week}</b> filed in the last 7 days</div></div>'
             f'{"".join(parts)}'
             f'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #dde7e7;font-size:12px;color:#8a9aa1;">'
@@ -394,7 +395,8 @@ def main():
                     ("Earlier this week", sec_week)]
         date_label = now.strftime("%b %-d, %Y")
         html_doc = build_html(args.brand, trade, date_label, sections,
-                              n, n + w, SITE, new_label.lower())
+                              n, n + w, SITE, new_label.lower(),
+                              n_records=len(sec_new))
         with open(args.html_out, "w") as f:
             f.write(html_doc)
         print(f"HTML call sheet: {args.html_out} "
