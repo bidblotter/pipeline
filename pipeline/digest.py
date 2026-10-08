@@ -90,6 +90,16 @@ def esc(t):
     return htmlmod.escape(t or "")
 
 
+PHONE_SVG = ('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" '
+             'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" '
+             'stroke-linejoin="round" style="vertical-align:-2px">'
+             '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 '
+             '19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 '
+             '2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 '
+             '16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 '
+             '2 0 0 1 22 16.92z"/></svg>')
+
+
 def clean(t):
     return re.sub(r"\s+", " ", t or "").strip()
 
@@ -207,7 +217,7 @@ def permit_card(p, badges=None, key=""):
     maps_q = urllib.parse.quote(loc) if loc else ""
     call_btn = (f'<a href="{tel}" style="display:inline-block;background:#0d7a6f;color:#ffffff !important;'
                 f'text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px;font-size:15px;">'
-                f'\u260e {esc(phone)}</a>' if tel and phone != "\u2014" else "")
+                f'{PHONE_SVG} {esc(phone)}</a>' if tel and phone != "\u2014" else "")
     # Parked 2026-10-07 (Hartland): "+ Add to contacts" button hidden until
     # contact info is richer. vCards still build daily in the workflow.
     vcard_btn = ""
