@@ -261,9 +261,9 @@ def build_html(brand, trade, date_label, sections, n_new, n_week, site_url,
             f'<div style="font-size:13px;color:#b9cdc9;margin-top:4px;">{esc(trade)} permits — Raleigh &middot; {esc(date_label)}</div>'
             f'</div>'
             f'<div style="background:#ffffff;border:1px solid #dde7e7;border-radius:12px;padding:16px 18px;margin:12px 0;">'
-            f'<div style="font-size:15px;color:#102e36;"><b>{n_records}</b> new to our records &nbsp;\u00b7&nbsp; '
-            f'<b>{n_new}</b> {esc(new_label.lower())} &nbsp;\u00b7&nbsp; '
-            f'<b>{n_week}</b> filed in the last 7 days</div></div>'
+            f'<div style="font-size:15px;color:#102e36;"><b>{n_records}</b> new contractors to our records &nbsp;\u00b7&nbsp; '
+            f'<b>{n_new}</b> {esc(new_label.lower().replace("new ", "new permits ", 1))} &nbsp;\u00b7&nbsp; '
+            f'<b>{n_week}</b> permits filed in last 7 days</div></div>'
             f'{"".join(parts)}'
             f'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #dde7e7;font-size:12px;color:#8a9aa1;">'
             f'{esc(brand)} — Raleigh permit intelligence. Public records, refreshed daily.<br>'
@@ -317,8 +317,8 @@ def main():
 
     L = []
     L.append(f"{trade} permits — Raleigh")
-    L.append(f"{len(new_rows)} {new_label.lower()} · "
-             f"{len(new_rows) + len(week_rows)} filed in the last "
+    L.append(f"{len(new_rows)} {new_label.lower().replace('new ', 'new permits ', 1)} · "
+             f"{len(new_rows) + len(week_rows)} permits filed in the last "
              f"{args.days} days")
     L.append("")
     if new_rows:
