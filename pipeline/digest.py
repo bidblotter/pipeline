@@ -251,7 +251,10 @@ def build_html(brand, trade, date_label, sections, n_new, n_week, site_url,
             f'margin:20px 0 10px;">{esc(title)}</div>{cards}')
     if not parts:
         parts.append('<p style="color:#5b6b73;">No new filings since yesterday.</p>')
-    return (f'<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f2f6f6;">'
+    return (f'<!DOCTYPE html><html><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{esc(brand)} — {esc(trade)} permits</title></head>'
+            f'<body style="margin:0;padding:0;background:#f2f6f6;">'
             f'<div style="max-width:600px;margin:0 auto;padding:20px 12px;">'
             f'<div style="background:#102e36;border-radius:12px;padding:22px 20px;margin-bottom:6px;">'
             f'<div style="font-size:24px;font-weight:bold;color:#ffffff;">Permit<span style="color:#2dd4bf;">Pulse</span></div>'
