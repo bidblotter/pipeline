@@ -195,7 +195,7 @@ lb_html = ''.join(
 phones = sum(1 for r in this_wk if r.get('contractor_phone'))
 
 page = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PermitPulse — Weekly Permit Intel{" (Sample)" if SAMPLE else ""}</title>
+<title>PermitPulse — Weekly Electrical Intel{" (Sample)" if SAMPLE else ""}</title>
 <style>
 :root{{--ink:#1c2b33;--muted:#5b6b73;--accent:#0d7a6f;--accent-dark:#0a5f57;--line:#e3e9eb;--bg:#f7faf9}}
 *{{box-sizing:border-box}}
@@ -266,7 +266,7 @@ tbody tr:hover td{{background:#f7fbfa}}
 </div></header>
 <main>
 <div class="report-head">
-<h1>Weekly Permit Intel</h1>
+<h1>Weekly Electrical Intel</h1>
 <div class="sub">Raleigh area · {week_label}{' · Sample report' if SAMPLE else ''}</div>
 </div>
 
