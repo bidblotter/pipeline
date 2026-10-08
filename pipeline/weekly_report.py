@@ -195,7 +195,7 @@ lb_html = ''.join(
 phones = sum(1 for r in this_wk if r.get('contractor_phone'))
 
 page = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PermitPulse — Weekly Electrical Intel{" (Sample)" if SAMPLE else ""}</title>
+<title>PermitPulse — Weekly Permit Intel{" (Sample)" if SAMPLE else ""}</title>
 <style>
 :root{{--ink:#1c2b33;--muted:#5b6b73;--accent:#0d7a6f;--accent-dark:#0a5f57;--line:#e3e9eb;--bg:#f7faf9}}
 *{{box-sizing:border-box}}
@@ -262,19 +262,18 @@ tbody tr:hover td{{background:#f7fbfa}}
 </style></head><body>
 <header class="masthead"><div class="masthead-inner">
 <div class="brand">Permit<span class="pulse">Pulse</span></div>
-<div class="brand-sub">Permit intelligence for electrical distributors · by PermitPicker</div>
+<div class="brand-sub">Permit intelligence · by PermitPicker</div>
 </div></header>
 <main>
 <div class="report-head">
-<h1>Weekly Electrical Intel</h1>
+<h1>Weekly Permit Intel</h1>
 <div class="sub">Raleigh area · {week_label}{' · Sample report' if SAMPLE else ''}</div>
 </div>
 
 <section>
 <div class="stats">
-<div class="stat"><b>{len(this_wk)}</b><span>new electrical permits</span></div>
-<div class="stat"><b>{phones}</b><span>with contractor phone</span></div>
-<div class="stat"><b>{len(cw)}</b><span>active contractors</span></div>
+<div class="stat"><b>{len(this_wk)}</b><span>new permits</span></div>
+<div class="stat"><b>{len(cw)}</b><span>contractors this week</span></div>
 <div class="stat"><b>{len(new_cs)}</b><span>new to our records</span></div>
 <div class="stat"><b>{money(val_total)}</b><span>total job valuation</span></div>
 <div class="stat"><b>{money(val_med)}</b><span>median job valuation</span></div>
@@ -295,7 +294,7 @@ tbody tr:hover td{{background:#f7fbfa}}
 
 <section>
 <h2>90-day leaderboard</h2>
-<p>Most active electrical contractors in our records over the last 90 days.</p>
+<p>Most active contractors in our records over the last 90 days.</p>
 <table><tr><th>#</th><th>Contractor</th><th>Phone</th><th>Permits</th></tr>{lb_html}</table>
 </section>
 
@@ -306,7 +305,7 @@ tbody tr:hover td{{background:#f7fbfa}}
 <tbody>{''.join(lead_rows)}</tbody></table></div>
 </section>
 
-{('<div class="cta no-print"><b>Like what you see?</b><span>This is a sample. PermitPulse delivers this briefing every week — plus a daily alert when new electrical permits are filed in your territory. Built from public permit records, refreshed daily.</span></div>' if SAMPLE else '<div class="cta no-print"><b>PermitPulse weekly briefing</b><span>Delivered every week, plus a daily alert when new electrical permits are filed in your territory. Built from public permit records, refreshed daily.</span></div>')}
+{('<div class="cta no-print"><b>Like what you see?</b><span>This is a sample. PermitPulse delivers this briefing every week — plus a daily alert when new permits are filed in your territory. Built from public permit records, refreshed daily.</span></div>' if SAMPLE else '<div class="cta no-print"><b>PermitPulse weekly briefing</b><span>Delivered every week, plus a daily alert when new permits are filed in your territory. Built from public permit records, refreshed daily.</span></div>')}
 
 <div class="note">{"Sample generated" if SAMPLE else "Generated"} {today.isoformat()} from public permit records (Wake County, City of Raleigh &amp; Town of Cary).
 "First seen" reflects PermitPulse's tracking window. Trade permits do not report valuations — totals and medians reflect only permits with a reported value. Coverage: county-issued Wake permits + City of Raleigh + Town of Cary; not all municipalities. Data is compiled from public records and provided as-is for informational purposes; PermitPulse does not warrant its accuracy, completeness, or timeliness and is not affiliated with any issuing authority.</div>
