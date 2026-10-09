@@ -202,7 +202,7 @@ def badge_pills(badges):
     return ('<div style="margin-top:9px;">' + "".join(pills) + '</div>' if pills else "")
 
 
-def permit_card(p, badges=None, key=""):
+def permit_card(p, badges=None, key="", section=""):
     co = clean(p.get("contractor"))
     addr = clean(p.get("address"))
     city = clean((p.get("city") or "").title())
@@ -227,8 +227,16 @@ def permit_card(p, badges=None, key=""):
     meta = " &nbsp;\u00b7&nbsp; ".join(b for b in meta_bits if b)
     name = (display_for(contractor_key(co), [co])[:40] if co and is_contractor(co)
             else (co or "No contractor listed"))
+    # Section tag: small uppercase label so the card's section is clear when scrolling.
+    # "New" sections in teal, "Earlier this week" in muted gray.
+    section_tag = ""
+    if section:
+        scolor = "#8a9aa1" if "Earlier this week" in section else "#0d7a6f"
+        section_tag = (f'<div style="font-size:11px;font-weight:bold;letter-spacing:1.2px;'
+                       f'color:{scolor};margin-bottom:7px;">{esc(section.upper())}</div>')
     return (f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;background:#ffffff;'
             f'border:1px solid #dde7e7;border-radius:10px;"><tr><td style="padding:14px 16px;">'
+            f'{section_tag}'
             f'<div style="font-size:16px;font-weight:bold;color:#102e36;">{esc(name)}</div>'
             f'<div style="font-size:13.5px;color:#3d4d54;margin-top:4px;">{esc(loc)}{maps_html}'
             f'{" &nbsp;\u00b7&nbsp; " + meta if meta else ""}</div>'
@@ -245,7 +253,7 @@ def build_html(brand, trade, date_label, sections, n_new, n_week, site_url,
     for title, items in sections:
         if not items:
             continue
-        cards = "".join(permit_card(p, badges, k) for p, k, badges in items)
+        cards = "".join(permit_card(p, badges, k, section=title) for p, k, badges in items)
         parts.append(
             f'<div style="font-size:17px;font-weight:bold;color:#102e36;'
             f'margin:20px 0 10px;">{esc(title)}</div>{cards}')
@@ -261,7 +269,7 @@ def build_html(brand, trade, date_label, sections, n_new, n_week, site_url,
             f'<div style="font-size:13px;color:#b9cdc9;margin-top:4px;">{esc(trade)} permits — Raleigh &middot; {esc(date_label)}</div>'
             f'</div>'
             f'<div style="background:#ffffff;border:1px solid #dde7e7;border-radius:12px;padding:16px 18px;margin:12px 0;">'
-            f'<div style="font-size:15px;color:#102e36;"><b>{n_records}</b> new contractors to our records &nbsp;\u00b7&nbsp; '
+            f'<div style="font-size:15px;color:#102e36;"><b>{n_records}</b> new contractors to our records this week &nbsp;\u00b7&nbsp; '
             f'<b>{n_new}</b> {esc(new_label.lower().replace("new ", "new permits ", 1))} &nbsp;\u00b7&nbsp; '
             f'<b>{n_week}</b> permits filed in last 7 days</div></div>'
             f'{"".join(parts)}'
@@ -390,13 +398,13 @@ def main():
                 sec_today.append((p, k, badges))
             else:
                 sec_week.append((p, k, badges))
-        sections = [("New to our records", sec_new),
+        sections = [("New to our records this week", sec_new),
                     (new_label, sec_today),
                     ("Earlier this week", sec_week)]
         date_label = now.strftime("%b %-d, %Y")
         html_doc = build_html(args.brand, trade, date_label, sections,
                               n, n + w, SITE, new_label.lower(),
-                              n_records=len(sec_new))
+                              n_records=len({k for _, k, _ in sec_new if k}))
         with open(args.html_out, "w") as f:
             f.write(html_doc)
         print(f"HTML call sheet: {args.html_out} "
