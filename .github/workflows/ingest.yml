@@ -110,6 +110,13 @@ jobs:
           SUBJECT=$(grep "^SUBJECT: " /tmp/digest_meta.txt | sed 's/^SUBJECT: //')
           [ -z "$SUBJECT" ] && SUBJECT="PermitPicker morning digest: $TRADE"
           python pipeline/send_digest.py --to "$TO" --subject "$SUBJECT" --body-file /tmp/digest.txt
+      - name: Build contractor first-seen lookup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          # Must run BEFORE any digest so "new to our records" uses fresh dates.
+          python pipeline/contractor_first_seen.py
       - name: Send customer digests
         if: ${{ inputs.send_digest == 'true' }}
         env:
@@ -162,12 +169,6 @@ jobs:
           else
             echo "no new signups"
           fi
-      - name: Build contractor first-seen lookup
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: |
-          python pipeline/contractor_first_seen.py
       - name: Build contractor vCards
         run: |
           python pipeline/build_vcards.py
