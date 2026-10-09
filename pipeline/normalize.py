@@ -25,6 +25,7 @@ NON_CONTRACTOR = {
 ALIASES = {
     'custom air conditioning dba': 'custom air conditioning',
     'a maynor heating &': 'a maynor heating & air',
+    'green horiz': 'green horizon',
 }
 
 
