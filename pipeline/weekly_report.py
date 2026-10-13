@@ -93,6 +93,25 @@ def money(v):
     if v >= 1_000: return f'${v/1_000:.0f}k'
     return f'${v:,.0f}'
 
+def val_sum(rows):
+    t = 0
+    for r in rows:
+        try:
+            t += float(r.get('valuation') or 0)
+        except (TypeError, ValueError):
+            pass
+    return t
+
+# Agent mode (--trade all): job-value triage column on contractor tables.
+JV_MODE = (TRADE == 'all')
+def jv_cell(rows):
+    if not JV_MODE:
+        return ''
+    t = val_sum(rows)
+    return f"<td>{money(t) if t > 0 else '—'}</td>"
+JV_TH = '<th>Job value</th>' if JV_MODE else ''
+JV_SPAN4 = 5 if JV_MODE else 4
+
 def is_trade(r):
     if TRADE_MATCH == '':
         # Agent mode: a permit with no contractor is not a lead.
@@ -153,6 +172,11 @@ for r in all_elec:
     c0 = (r.get('contractor') or '').strip()
     if is_contractor(c0):
         by_c[norm(c0)].append(r)
+by_c_wk = defaultdict(list)
+for r in this_wk:
+    c0 = (r.get('contractor') or '').strip()
+    if is_contractor(c0):
+        by_c_wk[norm(c0)].append(r)
 
 vals = []
 for r in this_wk:
@@ -201,15 +225,15 @@ if hidden:
 
 new_html = ''.join(
     f"<tr><td>{esc(display_name(by_c[c]))}</td><td>{tel_cell_raw(phone(by_c[c]))}</td>"
-    f"<td>{esc(first_seen[c])}</td><td>{len(by_c[c])}</td></tr>" for c in new_cs[:10])
+    f"<td>{esc(first_seen[c])}</td><td>{len(by_c[c])}</td>{jv_cell(by_c[c])}</tr>" for c in new_cs[:10])
 
 mover_html = ''.join(
     f"<tr><td>{esc(display_name(by_c[c]))}</td><td>{tel_cell_raw(phone(by_c[c]))}</td>"
-    f"<td>{n}</td><td>{base:.1f}/wk prior</td></tr>" for c, n, base in movers[:8])
+    f"<td>{n}</td><td>{base:.1f}/wk prior</td>{jv_cell(by_c_wk[c])}</tr>" for c, n, base in movers[:8])
 
 lb_html = ''.join(
     f"<tr><td>{i+1}</td><td>{esc(display_name(by_c[c]))}</td><td>{tel_cell_raw(phone(by_c[c]))}</td>"
-    f"<td>{n}</td></tr>" for i, (c, n) in enumerate(lb.most_common(10)))
+    f"<td>{n}</td>{jv_cell(by_c[c])}</tr>" for i, (c, n) in enumerate(lb.most_common(10)))
 
 phones = sum(1 for r in this_wk if r.get('contractor_phone'))
 
@@ -302,19 +326,19 @@ tbody tr:hover td{{background:#f7fbfa}}
 <section>
 <h2>New to our records this week</h2>
 <p>Contractors appearing in our records for the first time{f" — checked against full history back to {_hist_from}" if _hist_from else ""}.</p>
-<table><tr><th>Contractor</th><th>Phone</th><th>First seen</th><th>Permits</th></tr>{new_html or '<tr><td colspan=4>None this week</td></tr>'}</table>
+<table><tr><th>Contractor</th><th>Phone</th><th>First seen</th><th>Permits</th>{JV_TH}</tr>{new_html or f'<tr><td colspan={JV_SPAN4}>None this week</td></tr>'}</table>
 </section>
 
 <section>
 <h2>Biggest movers</h2>
 <p>Contractors running well above their recent pace (this week vs. prior 3-week average).</p>
-<table><tr><th>Contractor</th><th>Phone</th><th>This week</th><th>Prior avg</th></tr>{mover_html or '<tr><td colspan=4>None this week</td></tr>'}</table>
+<table><tr><th>Contractor</th><th>Phone</th><th>This week</th><th>Prior avg</th>{JV_TH}</tr>{mover_html or f'<tr><td colspan={JV_SPAN4}>None this week</td></tr>'}</table>
 </section>
 
 <section>
 <h2>90-day leaderboard</h2>
 <p>Most active contractors in our records over the last 90 days.</p>
-<table><tr><th>#</th><th>Contractor</th><th>Phone</th><th>Permits</th></tr>{lb_html}</table>
+<table><tr><th>#</th><th>Contractor</th><th>Phone</th><th>Permits</th>{JV_TH}</tr>{lb_html}</table>
 </section>
 
 <section>
