@@ -310,7 +310,8 @@ def main():
 
     def matches(p):
         if kw == "all":
-            return True
+            # Agent mode: a permit with no contractor is not a lead.
+            return bool((p.get("contractor") or "").strip())
         return (kw in (p.get("permit_type") or "").lower())
 
     new_rows = sorted(
