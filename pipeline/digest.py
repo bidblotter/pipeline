@@ -116,11 +116,17 @@ def load_first_seen(data_dir):
         return {}
 
 
-def rank_contractors(trade_rows, week_rows_all, first_seen, wk_start, prev_start):
+def rank_contractors(trade_rows, week_rows_all, first_seen, wk_start, prev_start,
+                     phone_first=None):
     """Split this week's trade contractors into ranked buckets.
 
     Returns (call_first_keys, info) where info[key] = dict with display name,
     phone, counts, is_new, is_hot, badges.
+
+    phone_first: optional dict of normalized phone -> earliest applied date
+    seen in the export. A contractor whose name is new but whose phone was
+    seen earlier (e.g. a truncated name variant like "AIR CONDI" vs
+    "Air Conditioning") is NOT new — same business, different spelling.
     """
     def key_of(p):
         c = (p.get("contractor") or "").strip()
@@ -153,6 +159,11 @@ def rank_contractors(trade_rows, week_rows_all, first_seen, wk_start, prev_start
     for k, n in cw.most_common():
         base = cp.get(k, 0) / 3.0
         is_new = (first_seen.get(k, "") or "") >= wk_start
+        if is_new and phone_first:
+            ph = phones.get(k, "")
+            pf = phone_first.get(ph) if ph else None
+            if pf and pf < wk_start:
+                is_new = False  # same phone, earlier name variant — not new
         is_hot = n >= 3 and n > base * 1.5
         badges = []
         if is_new:
@@ -386,8 +397,18 @@ def main():
                       if matches(x) and (x.get("applied_date") or "") >= wk_start_s]
         trade_prev = [x for x in permits
                       if matches(x) and prev_start_s <= (x.get("applied_date") or "") < wk_start_s]
+        # phone -> earliest applied date in the export window: catches
+        # contractors whose name spelling changed (truncations, variants).
+        phone_first = {}
+        for x in sorted(permits, key=lambda r: r.get("applied_date") or ""):
+            if not is_contractor((x.get("contractor") or "").strip()):
+                continue
+            ph = norm_phone(x.get("contractor_phone"))
+            if ph and ph != "—":
+                phone_first.setdefault(ph, (x.get("applied_date") or "")[:10])
         call_keys, info = rank_contractors(trade_week, trade_prev, first_seen,
-                                           wk_start_s, prev_start_s)
+                                           wk_start_s, prev_start_s,
+                                           phone_first=phone_first)
         # permits grouped into sections (each newest first)
         key_of = lambda p: (contractor_key((p.get("contractor") or "").strip())
                             if (p.get("contractor") or "").strip()
