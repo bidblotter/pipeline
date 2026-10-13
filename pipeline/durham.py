@@ -31,6 +31,15 @@ LAYERS = {
 FIELDS = ["Permit_ID", "P_Type", "P_Status", "P_Activity", "P_Descript",
           "SiteAdd", "Inspector", "PID", "PIN"]
 
+# Layer 10 is a STATIC historical feed (2007 -> 2026-10-01), not an active
+# one: unlike the Active layers it carries real issue dates and valuations.
+# Verified 2026-10-06: BLDB_ACTIVITY is uniformly "DEM" (maps to the
+# existing Demolition work-class bucket), status values are standard.
+DEMOLITION_LAYER = 10
+DEMOLITION_FIELDS = ["PermitNum", "ISSUE_DATE", "DESCRIPTION", "BLD_Cost",
+                     "PmtStatus", "BLDB_ACTIVITY", "PROJECT_NAME",
+                     "PIN", "PARCEL_ID", "TYPE"]
+
 SOURCE = "durham_active"
 
 
@@ -66,6 +75,50 @@ def norm_durham(layer, a, now_iso):
         "address": a.get("SiteAdd"),
         "city": "Durham",
         "valuation": None,
+        "contractor": None,
+        "contractor_email": None,
+        "contractor_phone": None,
+        "contractor_license": None,
+        "latitude": None,
+        "longitude": None,
+        "source_feed": SOURCE,
+        "raw": a,
+    }
+
+
+def esri_date(ms):
+    """ArcGIS esriFieldTypeDate (epoch ms) -> ISO 8601 UTC, or None."""
+    if ms is None:
+        return None
+    return dt.datetime.fromtimestamp(ms / 1000, dt.timezone.utc).isoformat()
+
+
+def norm_durham_demo(a):
+    """Normalize a layer-10 (Demolition Permits) row.
+
+    Permit numbers get a DEM- namespace: layer-10 PermitNums share the
+    YY-prefixed 8-digit format of the Active layers' Permit_IDs, and
+    `permits` upserts on (jurisdiction, permit_number), so an unprefixed
+    ID could collide with an active-layer permit and merge-corrupt it.
+
+    source_feed stays "durham_active" so export.py's Durham exclusion
+    (which keys on that exact value, client-side) keeps covering these
+    rows while Durham display is OFF. Applied date is unknown in this
+    layer; the real issue date is used for both date fields.
+    """
+    issue = esri_date(a.get("ISSUE_DATE"))
+    return {
+        "jurisdiction": "durham",
+        "permit_number": "DEM-" + str(a.get("PermitNum")).strip(),
+        "permit_type": "Demolition Permit",  # existing Demolition trade bucket
+        "work_class": a.get("BLDB_ACTIVITY"),  # "DEM" -> demolition WC bucket
+        "description": a.get("DESCRIPTION"),
+        "status": a.get("PmtStatus"),
+        "applied_date": issue,
+        "issued_date": issue,
+        "address": None,  # layer carries PIN/PARCEL_ID, no street address
+        "city": "Durham",
+        "valuation": a.get("BLD_Cost"),
         "contractor": None,
         "contractor_email": None,
         "contractor_phone": None,
@@ -138,6 +191,36 @@ def main():
         except Exception as e:
             log(f"[{layer}] ERROR: {e}")
             failures.append(layer)
+    # Layer 10: historical demolition feed. Static (no daily churn), so it
+    # runs through the same snapshot dedupe: backfills once, then no-ops.
+    try:
+        n_layer = 0
+        for attrs in arcgis_query(f"{BASE}/{DEMOLITION_LAYER}", "1=1",
+                                  DEMOLITION_FIELDS, "PermitNum"):
+            fetched += 1
+            n_layer += 1
+            pid = attrs.get("PermitNum")
+            if not pid:
+                continue
+            pid = "DEM-" + str(pid).strip()
+            if ("demolition", pid) in seen:
+                continue
+            new_rows.append(norm_durham_demo(attrs))
+            new_snap.append({
+                "layer": "demolition",
+                "permit_id": pid,
+                "p_type": "Demolition Permit",
+                "p_status": attrs.get("PmtStatus"),
+                "p_activity": attrs.get("BLDB_ACTIVITY"),
+                "p_descript": attrs.get("DESCRIPTION"),
+                "site_add": None,
+                "pid": attrs.get("PARCEL_ID") or attrs.get("PIN"),
+            })
+            seen.add(("demolition", pid))  # intra-run dupes
+        log(f"[demolition] scanned={n_layer}")
+    except Exception as e:
+        log(f"[demolition] ERROR: {e}")
+        failures.append("demolition")
     log(f"new Durham permits: {len(new_rows)} (scanned {fetched})")
     inserted = 0
     try:
