@@ -94,6 +94,9 @@ def money(v):
     return f'${v:,.0f}'
 
 def is_trade(r):
+    if TRADE_MATCH == '':
+        # Agent mode: a permit with no contractor is not a lead.
+        return bool((r.get('contractor') or '').strip())
     return TRADE_MATCH in (r.get('permit_type') or '').lower()
 
 # Back-compat alias (electrical default)
