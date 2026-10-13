@@ -153,8 +153,31 @@ if not first_seen:
         c = norm(r.get('contractor'))
         if c and is_contractor(r.get('contractor')) and c not in first_seen:
             first_seen[c] = (r.get('applied_date') or '')[:10]
-new_cs = [c for c, f in first_seen.items()
-          if f >= wk_start and any(is_elec(r) and norm(r.get('contractor')) == c for r in this_wk)]
+
+# phone -> earliest applied date in the export window: a contractor whose
+# name is new but whose phone was seen earlier (truncated name variants)
+# is NOT new — same business, different spelling.
+phone_first = {}
+for r in sorted(d, key=lambda r: r.get('applied_date') or ''):
+    if not is_contractor((r.get('contractor') or '').strip()):
+        continue
+    ph = norm_phone(r.get('contractor_phone'))
+    if ph and ph != '—':
+        phone_first.setdefault(ph, (r.get('applied_date') or '')[:10])
+
+def _is_new(c, f):
+    if not (f >= wk_start):
+        return False
+    wk_rows = [r for r in this_wk
+               if is_trade(r) and norm(r.get('contractor')) == c]
+    if not wk_rows:
+        return False
+    ph = phone(wk_rows)
+    pf = phone_first.get(ph) if ph and ph != '—' else None
+    if pf and pf < wk_start:
+        return False
+    return True
+new_cs = [c for c, f in first_seen.items() if _is_new(c, f)]
 
 cw = Counter(norm(r.get('contractor')) for r in this_wk if is_contractor(r.get('contractor')))
 cp = Counter(norm(r.get('contractor')) for r in prior if is_contractor(r.get('contractor')))
