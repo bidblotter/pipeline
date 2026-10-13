@@ -306,9 +306,11 @@ def main():
     day_ago = (now - dt.timedelta(hours=lookback_h)).isoformat()
     week_ago = (now - dt.timedelta(days=args.days)).isoformat()
     kw = args.trade.lower()
-    trade = args.trade.title()
+    trade = "All trades" if kw == "all" else args.trade.title()
 
     def matches(p):
+        if kw == "all":
+            return True
         return (kw in (p.get("permit_type") or "").lower())
 
     new_rows = sorted(
@@ -349,7 +351,8 @@ def main():
         rest = len(week_rows) - len(shown)
         if rest > 0:
             L.append(f"  ...and {rest} more. Browse them all:")
-            L.append(f"  {SITE}?q={kw}&days={args.days}")
+            L.append(f"  {SITE}?days={args.days}" if kw == "all"
+                       else f"  {SITE}?q={kw}&days={args.days}")
             L.append("")
     L.append("---")
     L.append(f"{args.brand} — Raleigh permit intelligence. "
@@ -412,11 +415,12 @@ def main():
               f"({len(sec_new)} new to records, {len(sec_today)} new today, "
               f"{len(sec_week)} earlier this week)")
 
+    subj_kw = "permit" if kw == "all" else f"{kw} permit"
     if n:
-        subject = f"{n} new {kw} permit{'s' if n != 1 else ''} — {args.brand}"
+        subject = f"{n} new {subj_kw}{'s' if n != 1 else ''} — {args.brand}"
     else:
-        subject = (f"{w} {kw} permits this week — {args.brand}"
-                   if w else f"No new {kw} permits — {args.brand}")
+        subject = (f"{w} {subj_kw}s this week — {args.brand}"
+                   if w else f"No new {subj_kw}s — {args.brand}")
     print(f"SUBJECT: {subject}")
 
 
