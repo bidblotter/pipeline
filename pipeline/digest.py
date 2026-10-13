@@ -290,6 +290,8 @@ def main():
                     help="Brand name used in subject/footer (PermitPicker or PermitPulse)")
     ap.add_argument("--html-out", default=None,
                     help="Also write the PermitPulse HTML call-sheet version to this path")
+    ap.add_argument("--as-of", default=None,
+                    help="Generate as if run on YYYY-MM-DD (ET); for samples")
     args = ap.parse_args()
 
     data_path = os.path.join(os.path.dirname(__file__), "..", "web",
@@ -297,9 +299,14 @@ def main():
     with open(data_path) as f:
         permits = json.load(f)["permits"]
 
-    now = dt.datetime.now(dt.timezone.utc)
-    # No sends on weekends, so Monday's digest looks back to Friday's send.
     from zoneinfo import ZoneInfo
+    if args.as_of:
+        _d = dt.date.fromisoformat(args.as_of)
+        now = dt.datetime(_d.year, _d.month, _d.day, 6,
+                          tzinfo=ZoneInfo("America/New_York")).astimezone(dt.timezone.utc)
+    else:
+        now = dt.datetime.now(dt.timezone.utc)
+    # No sends on weekends, so Monday's digest looks back to Friday's send.
     is_monday = now.astimezone(ZoneInfo("America/New_York")).weekday() == 0
     lookback_h = 72 if is_monday else 24
     new_label = "New since Friday" if is_monday else "New today"
