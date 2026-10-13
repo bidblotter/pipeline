@@ -17,6 +17,8 @@ ap.add_argument('--teaser-rows', type=int, default=0,
                 help='Pitch sample: show only N lead-table rows, then a teaser row')
 ap.add_argument('--trade', default='electrical',
                 help='Trade filter: electrical (default), mechanical, or all')
+ap.add_argument('--as-of', default=None,
+                help='Generate as if run on YYYY-MM-DD; for samples')
 args = ap.parse_args()
 
 SRC = args.src
@@ -123,7 +125,7 @@ def is_elec(r):
     return is_trade(r)
 
 d = json.load(open(SRC))['permits']
-today = datetime.date.today()
+today = datetime.date.fromisoformat(args.as_of) if args.as_of else datetime.date.today()
 wk_start = (today - datetime.timedelta(days=7)).isoformat()
 prev_start = (today - datetime.timedelta(days=28)).isoformat()
 
