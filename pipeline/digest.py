@@ -322,7 +322,10 @@ def main():
     lookback_h = 72 if is_monday else 24
     new_label = "New since Friday" if is_monday else "New today"
     day_ago = (now - dt.timedelta(hours=lookback_h)).isoformat()
-    week_ago = (now - dt.timedelta(days=args.days)).isoformat()
+    # applied_date values are calendar dates ("2026-10-05"); compare
+    # date-to-date so the boundary day isn't lost to string comparison
+    # against a datetime ("2026-10-05" < "2026-10-05T10:00:00+00:00").
+    week_ago = (now - dt.timedelta(days=args.days)).date().isoformat()
     kw = args.trade.lower()
     trade = "All trades" if kw == "all" else args.trade.title()
 
