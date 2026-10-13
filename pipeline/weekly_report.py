@@ -15,11 +15,23 @@ ap.add_argument('--src', default='/tmp/pp.json')
 ap.add_argument('--first-seen', default='/tmp/first_seen.json')
 ap.add_argument('--teaser-rows', type=int, default=0,
                 help='Pitch sample: show only N lead-table rows, then a teaser row')
+ap.add_argument('--trade', default='electrical',
+                help='Trade filter: electrical (default), mechanical, or all')
 args = ap.parse_args()
 
 SRC = args.src
 OUT = args.out
 SAMPLE = args.sample
+TRADE = args.trade.lower()
+if TRADE == 'all':
+    TRADE_LABEL = 'All-Trades'
+    TRADE_MATCH = ''
+elif TRADE == 'mechanical':
+    TRADE_LABEL = 'Mechanical'
+    TRADE_MATCH = 'mech'
+else:
+    TRADE_LABEL = 'Electrical'
+    TRADE_MATCH = 'elec'
 
 def norm_phone(p):
     d = re.sub(r'\D', '', p or '')
@@ -81,8 +93,12 @@ def money(v):
     if v >= 1_000: return f'${v/1_000:.0f}k'
     return f'${v:,.0f}'
 
+def is_trade(r):
+    return TRADE_MATCH in (r.get('permit_type') or '').lower()
+
+# Back-compat alias (electrical default)
 def is_elec(r):
-    return 'elec' in (r.get('permit_type') or '').lower()
+    return is_trade(r)
 
 d = json.load(open(SRC))['permits']
 today = datetime.date.today()
@@ -195,7 +211,7 @@ lb_html = ''.join(
 phones = sum(1 for r in this_wk if r.get('contractor_phone'))
 
 page = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PermitPulse — Weekly Electrical Intel{" (Sample)" if SAMPLE else ""}</title>
+<title>PermitPulse — Weekly {TRADE_LABEL} Intel{" (Sample)" if SAMPLE else ""}</title>
 <style>
 :root{{--ink:#1c2b33;--muted:#5b6b73;--accent:#0d7a6f;--accent-dark:#0a5f57;--line:#e3e9eb;--bg:#f7faf9}}
 *{{box-sizing:border-box}}
@@ -266,7 +282,7 @@ tbody tr:hover td{{background:#f7fbfa}}
 </div></header>
 <main>
 <div class="report-head">
-<h1>Weekly Electrical Intel</h1>
+<h1>Weekly {TRADE_LABEL} Intel</h1>
 <div class="sub">Raleigh area · {week_label}{' · Sample report' if SAMPLE else ''}</div>
 </div>
 
