@@ -8,4 +8,19 @@
   <url><loc>https://permitpicker.com/?type=demolition</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
   <url><loc>https://permitpicker.com/?type=fire</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
   <url><loc>https://permitpicker.com/?type=sitework</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://permitpicker.com/costs/deck/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/deck-raleigh/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/addition/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/addition-raleigh/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/pool/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/pool-raleigh/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/accessory-building/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/accessory-building-raleigh/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/kitchen-remodel/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/kitchen-remodel-cary/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/kitchen-remodel-raleigh/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/bathroom-remodel/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/bathroom-remodel-cary/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://permitpicker.com/costs/bathroom-remodel-raleigh/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
 </urlset>
