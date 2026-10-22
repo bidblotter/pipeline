@@ -430,13 +430,9 @@ def render_form(cat, place, city_value, p25, med, p75):
   </form>
 </section>
 <script>
-// TODO(backend): quote requests are not stored anywhere yet. The Supabase
-// project has no leads table — the existing `waitlist` table is
-// email+trade only and cannot hold name/phone/city/project fields.
-// To enable: run sql/quote_requests.sql (in the PermitPicker repo) in the
-// Supabase SQL editor, then set LEAD_ENDPOINT to
-// SUPABASE_URL + "/rest/v1/quote_requests". No other change is needed.
-const LEAD_ENDPOINT = null; // TODO: enable when the quote_requests table exists
+// Backend: posts to the Supabase `quote_requests` table (created via
+// sql/quote_requests.sql; public-insert RLS policy, reads locked down).
+const LEAD_ENDPOINT = "{SUPABASE_URL}/rest/v1/quote_requests";
 const SUPABASE_URL = "{SUPABASE_URL}";
 const SUPABASE_ANON_KEY = "PASTE_ANON_KEY_HERE";
 document.getElementById("q-form").addEventListener("submit", async e => {{
