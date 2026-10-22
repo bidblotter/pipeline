@@ -10,16 +10,21 @@ Everything on the pages is an aggregate over permit records whose
 `valuation` (the value the applicant declared on the permit application)
 is > 0. Pages never show individual permits or street addresses.
 
-Category definitions (v1)
+Category definitions (v2)
 --------------------------
-Work-class categories match `work_class` exactly:
-  deck       work_class == "Deck"
-  addition   work_class == "Addition"
-  pool       work_class == "Pool, Spa & Hot Tub"
-  accessory  work_class == "Accessory Building"
+Every category is a UNION of two arms:
 
-Remodel categories are description slices (kitchen / bathroom). A record
-qualifies when ALL of the following hold:
+  * Work-class arm: `work_class` matches exactly (deck "Deck",
+    addition "Addition", pool "Pool, Spa & Hot Tub", accessory
+    "Accessory Building"). These classes exist only in the Wake County
+    building feed, whose exported rows carry no contractor names.
+  * Description arm (deck / addition / pool / accessory only): the
+    same work filed by the Raleigh and Cary feeds, which use generic
+    work classes ("Existing", "New") and name the job in the permit
+    description instead. Modeled on the remodel slices below.
+
+Remodel categories (kitchen / bathroom) are description slices only.
+A record qualifies when ALL of the following hold:
   * description (lowercased) contains the keyword ("kitchen" / "bath");
   * work_class is NOT one of the new-construction / commercial / hood
     classes in REMODEL_EXCLUDE_WC (this drops whole-house new builds,
@@ -31,10 +36,58 @@ qualifies when ALL of the following hold:
     baths, which would swamp the remodel signal);
   * status is not "Withdrawn" (a withdrawn permit never became a job).
 
+Description-arm guards for the four work-class categories
+(_slice_guards) follow the remodel pattern:
+  * valued and not Withdrawn;
+  * work_class is not one of the four category classes (a record the
+    county already classed stays in its own category — pool permits
+    mentioning a deck do not leak into deck) and not "Alteration"
+    (interior permits whose prose enumerates the whole house);
+  * work_class not in REMODEL_EXCLUDE_WC — except that addition and
+    accessory ALLOW "New": in the Raleigh/Cary taxonomy "New" is the
+    class for a new addition or a new accessory structure, and the
+    marker-phrase guard still bars whole-house builds. Deck and pool
+    keep the full exclusion (their "New"-class hits were whole-house
+    renovations mentioning a deck / pool houses);
+  * building permits only: permit_type is not "Commercial Building"
+    and not a trade / inspection / demolition / fire / sign /
+    development type (a $60 pool-pump electrical permit is not a pool
+    job);
+  * no NEW_CONSTRUCTION_MARKERS.
+
+Per-category description rules:
+  * deck: the word "deck"/"decks", minus parking decks/facilities/
+    garages and "pool deck" (the apron around a pool — those jobs are
+    in pool). Combo permits that lead with other work ("ADDITION;
+    REMODEL; DECK") still count, as the remodel slices already overlap
+    each other.
+  * pool: "pool"/"pools", "hot tub"/"hot tubs", "swim spa(s)" (bare
+    "spa" is mostly salons and trade circuits), minus swim schools.
+    Pool houses stay: the county classes them as accessory buildings,
+    and a pool house description here lands in both slices.
+  * addition: "addition" must be the SUBJECT, via ADDITION_SUBJECT
+    (a room/sunroom/etc. addition, a sized addition, Cary's
+    ledger-style lead "ADDITION, ...", "addition to the rear/side",
+    "addition of a porch/sunroom/...", colon/paren forms, a following
+    room noun, or a build verb + "addition" backed by a residential
+    context word) — and the description carries no non-residential
+    subject marker (ADDITION_NONRESI: church, warehouse, library,
+    restaurant, ...). Bare boilerplate — "in addition", "addition of
+    lighting and fans", "additional" — never qualifies, so deck and
+    pool jobs that mention an "addition of" a component stay out.
+  * accessory: an accessory-structure noun (garage, shed, workshop,
+    carport, barn, pool house, or the phrases "accessory structure" /
+    "accessory building") in a BUILD context (ACCESSORY_SUBJECT:
+    detached/attached/storage/prefab modifiers, build verbs, or the
+    ledger-style lead), minus dwellings and sales conversions
+    (ACCESSORY_EXCLUDE: accessory dwelling units, duplexes, model-home
+    sales offices). Garage conversions and in-garage services are not
+    builds and mostly fall out on their own.
+
 ALL categories also exclude status == "Withdrawn" and require
-valuation > 0. Kitchen and bathroom slices can overlap (a permit for a
-combined kitchen-and-bath remodel appears in both) — each page is its
-own slice of the same records.
+valuation > 0. Categories can overlap (a combined kitchen-and-bath
+remodel appears in both; a garage addition appears in addition and
+accessory) — each page is its own slice of the same records.
 
 A "roof" category is deliberately NOT built: keyword slices on
 descriptions catch roof structures/framing on much larger jobs and
@@ -138,16 +191,167 @@ def _remodel(keyword):
     return match
 
 
+# ---------------------------------------------------------------------------
+# Description arms for the work-class categories (see module docstring)
+# ---------------------------------------------------------------------------
+
+CATEGORY_WORK_CLASSES = {
+    "Deck", "Addition", "Pool, Spa & Hot Tub", "Accessory Building",
+}
+
+
+def _nonbuilding_permit_type(pt):
+    """Trade/inspection/demolition/etc. permits are components of a job,
+    not the job itself (e.g. a $60 pool-pump electrical permit)."""
+    p = pt or ""
+    if p == "Commercial Building" or p.startswith("DSINSP"):
+        return True
+    pl = p.lower()
+    return any(t in pl for t in ("electrical", "plumbing", "mechanical",
+                                 "demolition", "fire", "sign", "dev"))
+
+
+def _slice_guards(r, allow_new):
+    """Shared guards for the description arms. allow_new lets addition
+    and accessory accept the Raleigh/Cary "New" work class (a new
+    addition / accessory structure there); the marker phrases still bar
+    whole-house construction."""
+    if not _live(r):
+        return False
+    wc = r.get("work_class") or ""
+    if wc in CATEGORY_WORK_CLASSES or wc == "Alteration":
+        return False
+    exclude_wc = REMODEL_EXCLUDE_WC - ({"New"} if allow_new else set())
+    if wc in exclude_wc:
+        return False
+    if _nonbuilding_permit_type(r.get("permit_type")):
+        return False
+    desc = (r.get("description") or "").lower()
+    return not any(m in desc for m in NEW_CONSTRUCTION_MARKERS)
+
+
+def _desc_text(raw):
+    """Lowercased description with 'sq. ft.'-style abbreviations folded
+    so size patterns match across the abbreviation's periods."""
+    return re.sub(r"sq\.?\s?ft\.?", "sqft", (raw or "").lower())
+
+
+def _desc_slice(keyword_rx, allow_new=False, extra=None):
+    """extra receives the normalized description and must also pass."""
+    def match(r):
+        if not _slice_guards(r, allow_new):
+            return False
+        desc = _desc_text(r.get("description"))
+        return bool(keyword_rx.search(desc)) and \
+            (extra is None or extra(desc))
+    return match
+
+
+def _union(work_class, slice_match):
+    wc_match = _work_class(work_class)
+    return lambda r: wc_match(r) or slice_match(r)
+
+
+# --- deck -------------------------------------------------------------------
+
+DECK_EXCLUDE = ("parking deck", "parking facility", "parking garage",
+                "pool deck")
+
+# --- pool -------------------------------------------------------------------
+
+POOL_EXCLUDE = ("swim school",)
+
+# --- addition ---------------------------------------------------------------
+
+_ADD_NOUN = (r"(room|rm|sunroom|bedroom|bathroom|kitchen|primary|master|"
+             r"den|mudroom|garage|porch|suite|nook|laundry|closet|office|"
+             r"study|attic|basement|dining|floor|space)")
+_ADD_SIZE = r"\d[\d,]*\s*(sqft|sf|square[-\s]?f\w*)"
+ADDITION_SUBJECT = re.compile(
+    r"\b" + _ADD_NOUN + r"\s+addition\b"                      # room addition
+    r"|\baddition\b[^.]{0,45}?" + _ADD_SIZE +                 # addition of 500 sqft
+    r"|" + _ADD_SIZE + r"[^.]{0,45}?\baddition\b"              # 783sqft addition
+    r"|\baddition is\b"                                       # addition is 12x24
+    r"|^\s*addition\b"                                        # Cary ledger lead
+    r"|\b(new|proposed|residential|single-story|two-story|2-story|1-story|"
+    r"story|attached|detached|rear|side|front|upper|heated|conditioned|"
+    r"open)\s+addition\b"                                     # rear addition
+    r"|\baddition\s+(off|to|on|onto)\s+the\s+"
+    r"(rear|side|front|back|left|right)\b"                    # addition to the rear
+    r"|\baddition\s+of\s+(a\s+|an\s+|the\s+)?(screened?\s+)?"
+    r"(porch|sunroom|bedroom|bathroom|garage|room|deck|patio|suite|closet)\b"
+    r"|\baddition\s*[:(&]"                                    # ADDITION: / (EXT...
+    r"|\baddition\b[^.]{0,60}?\b(bathroom|bedroom|kitchen|suite|closet)\b")
+ADDITION_VERB = re.compile(
+    r"\b(add|adds|adding|construct|build|building|extend|extending)\b"
+    r"[^.]{0,45}?\baddition\b")
+ADDITION_RES_CONTEXT = re.compile(
+    r"\b(house|home|dwelling|residence|residential|bedroom|bathroom|"
+    r"kitchen|suite|family|living|porch|garage|sunroom|closet|laundry|"
+    r"mudroom|den|room|attic|basement)\b")
+ADDITION_NONRESI = (
+    "warehouse", "church", "sanctuary", "narthex", "library",
+    "restaurant", "pemb", "school", "retail", "storefront",
+    "industrial", "tenant", "office building",
+)
+
+
+def _addition_subject(desc):
+    hits = [rx for rx in (ADDITION_SUBJECT, ADDITION_VERB) if rx.search(desc)]
+    if not hits:
+        return False
+    # A lone build-verb match ("add an addition to an existing
+    # structure") needs a residential context word somewhere in the
+    # description; subject-pattern matches stand on their own.
+    if hits == [ADDITION_VERB] and not ADDITION_RES_CONTEXT.search(desc):
+        return False
+    return not any(m in desc for m in ADDITION_NONRESI)
+
+
+# --- accessory building -----------------------------------------------------
+
+_ACC_NOUN = r"(garage|shed|workshop|carport|barn|pool house)"
+ACCESSORY_SUBJECT = re.compile(
+    r"\baccessory\s+(structure|building)\b"
+    r"|\b(detached|attached|new|prefab|prefabricated|pre-?manufactured|"
+    r"prebuilt|free ?standing|metal|steel|storage|residential|enclosed)"
+    r"\s+" + _ACC_NOUN + r"\b"
+    r"|\bdetached\b[^.]{0,25}?\b" + _ACC_NOUN + r"\b"
+    r"|\b(construct|build|erect)\w*\b[^.]{0,40}?\b" + _ACC_NOUN + r"\b"
+    r"|\b(prefab|prefabricated|pre-?manufactured|prebuilt)\b[^.]{0,30}?\b"
+    r"(garage|shed|building|structure)\b"
+    r"|\b" + _ACC_NOUN + r"\s+addition\b"
+    r"|^\s*(detached\s+|attached\s+)?" + _ACC_NOUN + r"\b")
+ACCESSORY_EXCLUDE = (
+    "accessory dwelling", "dwelling", "quadplex", "duplex",
+    "sales office", "sales center", "nsfd",
+)
+
+
+def _accessory_subject(desc):
+    return bool(ACCESSORY_SUBJECT.search(desc)) and \
+        not any(m in desc for m in ACCESSORY_EXCLUDE)
+
+
 CATEGORIES = [
     {"id": "deck", "job": "deck", "label": "Deck",
-     "match": _work_class("Deck")},
+     "match": _union("Deck", _desc_slice(
+         re.compile(r"\bdecks?\b"),
+         extra=lambda d: not any(m in d for m in DECK_EXCLUDE)))},
     {"id": "addition", "job": "home addition", "label": "Home addition",
-     "match": _work_class("Addition")},
+     "match": _union("Addition", _desc_slice(
+         re.compile(r"\baddition\b"), allow_new=True,
+         extra=_addition_subject))},
     {"id": "pool", "job": "pool", "label": "Pool, spa & hot tub",
-     "match": _work_class("Pool, Spa & Hot Tub")},
+     "match": _union("Pool, Spa & Hot Tub", _desc_slice(
+         re.compile(r"\bpools?\b|\bhot tubs?\b|\bswim spas?\b"),
+         extra=lambda d: not any(m in d for m in POOL_EXCLUDE)))},
     {"id": "accessory-building", "job": "accessory building",
      "label": "Accessory building (garage, shed, workshop)",
-     "match": _work_class("Accessory Building")},
+     "match": _union("Accessory Building", _desc_slice(
+         re.compile(r"\b(accessory|garages?|sheds?|workshops?|carports?|"
+                    r"barns?|pool house)\b"),
+         allow_new=True, extra=_accessory_subject))},
     {"id": "kitchen-remodel", "job": "kitchen remodel",
      "label": "Kitchen remodel", "match": _remodel("kitchen")},
     {"id": "bathroom-remodel", "job": "bathroom remodel",
