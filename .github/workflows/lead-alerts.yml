@@ -1,0 +1,54 @@
+name: lead-alerts
+
+# Hourly check for new homeowner quote requests in Supabase
+# (quote_requests, fed by the permitpicker.com/costs/ forms). When new
+# rows exist, pipeline/lead_alerts.py emails a work-order digest to
+# Andrew and advances the watermark in state/lead_alerts.json, which
+# the commit step below pushes back. The script is watermark-based, so
+# a delayed or skipped scheduled run never loses a lead — it is picked
+# up on the next run.
+#
+# NOTE: GitHub's native schedule can drift; that is acceptable here for
+# the reason above. (The daily ingest deliberately uses cron-job.org
+# instead — see ingest.yml — because a late digest is a product bug in
+# a way a late lead alert is not.)
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lead-alerts
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check for new quote requests
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python pipeline/lead_alerts.py
+      - name: Commit alert state
+        if: always()
+        run: |
+          if [ -f state/lead_alerts.json ] && ! git diff --quiet -- state/lead_alerts.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/lead_alerts.json
+            git commit -m "lead-alerts: advance watermark"
+            git push
+          else
+            echo "state unchanged — nothing to commit"
+          fi
