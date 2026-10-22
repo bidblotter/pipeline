@@ -398,7 +398,7 @@ def render_form(cat, place, city_value, p25, med, p75):
     opts = "\n".join(f'          <option>{esc(b)}</option>' for b in brackets)
     return f"""<section class="quote">
   <h2>Get quotes for your {esc(cat['job'])}</h2>
-  <p>Free for homeowners. Your request is shared with <b>at most 2</b> local
+  <p>Free for homeowners. Your request goes to local
   contractors who actively do this work in {esc(place)} — never blasted to a
   list. Contractors reply directly; there's no obligation to hire anyone.</p>
   <form id="q-form">
@@ -424,7 +424,7 @@ def render_form(cat, place, city_value, p25, med, p75):
     </select>
     <textarea id="q-details" placeholder="Tell the contractors about the project (size, timing, anything that matters)"></textarea>
     <label class="consent"><input type="checkbox" id="q-consent" required>
-      <span>By submitting, I agree that matched local contractors (at most 2) may contact me about my project by phone, text, or email.</span></label>
+      <span>By submitting, I agree that matched local contractors may contact me about my project by phone, text, or email.</span></label>
     <button type="submit">Request quotes</button>
     <p id="q-msg"></p>
   </form>
