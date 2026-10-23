@@ -725,6 +725,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     </table>
     <p class="rank-note">Ranked by recent permit activity from public records — not advertising.
     “Typical project size” is the median declared value of that contractor's {esc(job)} permits in this set.</p>
+    <p class="rank-note"><a href="/contractors/{slug}/">See the full activity ranking for {esc(place)}</a></p>
   </div>"""
     else:
         co_html = ""
