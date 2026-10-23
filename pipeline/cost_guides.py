@@ -153,6 +153,38 @@ document.addEventListener('click', function(e){
   if (a) { gtag('event', 'call_click', {phone: a.getAttribute('href').replace('tel:', ''), page_path: location.pathname}); }
 });
 </script>"""
+
+# Sticky quote bar for cost-guide pages (quick pack, 2026-10-23):
+# appears after scrolling past the hero, hides while the form itself
+# is on screen, and reports clicks as GA4 quote_cta events.
+STICKY_TMPL = """<div class="sticky-cta" id="stickyCta" hidden>
+  <span class="sc-text"><b>__JOBCAP__ in __PLACE__</b> · typical __MED__</span>
+  <a class="cta-btn quote-cta" data-cta="sticky" href="#get-quotes">Get quotes</a>
+</div>
+<script>
+(function () {
+  var bar = document.getElementById('stickyCta');
+  var form = document.getElementById('get-quotes');
+  if (!bar || !form) return;
+  var formVisible = false;
+  function sync() {
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    bar.hidden = !(y > 420 && !formVisible);
+  }
+  window.addEventListener('scroll', sync, { passive: true });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (es) {
+      es.forEach(function (e) { formVisible = e.isIntersecting; });
+      sync();
+    }).observe(form);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a.quote-cta') : null;
+    if (a && window.gtag) gtag('event', 'quote_cta', { cta_location: a.getAttribute('data-cta'), page_path: location.pathname });
+  });
+  sync();
+})();
+</script>"""
 REGION_NAME = "Raleigh area"
 REGION_SLUG = ""  # region pages live at /costs/<category>/
 CITY_MIN_N = 25
@@ -618,6 +650,17 @@ CSS = """
   .quote label.consent input { width: auto; margin-top: 2px; }
   .quote button { background: #0d7a6f; color: #fff; border: none; border-radius: 6px; padding: 11px 18px; font-size: 15px; font-weight: 700; cursor: pointer; }
   .quote button:hover { background: #0b6a60; }
+  .hero-cta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 2px 0 18px; }
+  .cta-btn { display: inline-block; background: #0d7a6f; color: #fff; padding: 12px 22px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+  .cta-btn:hover { background: #0b6a60; }
+  .cta-note { font-size: 13px; color: #55606a; }
+  @media (prefers-color-scheme: dark) { .cta-note { color: #9fb0c0; } }
+  .quote .trust { font-size: 12.5px; opacity: .85; margin: 2px 0 0; line-height: 1.45; }
+  body.guide { padding-bottom: 64px; }
+  .sticky-cta { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: #102e36; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -2px 10px rgba(0,0,0,.25); }
+  .sticky-cta .sc-text { font-size: 13.5px; line-height: 1.35; }
+  .sticky-cta .cta-btn { padding: 9px 16px; font-size: 14.5px; white-space: nowrap; box-shadow: none; }
+  @media (max-width: 640px) { .hero-cta .cta-btn { width: 100%; text-align: center; } }
   #q-msg { font-size: 13px; min-height: 18px; margin-top: 4px; }
   #q-msg.ok { color: #7ce3a5; }
   #q-msg.err { color: #ff9d9d; }
@@ -731,7 +774,7 @@ def render_faq(faqs):
   </div>"""
 
 
-def render_form(cat, place, city_value, p25, med, p75):
+def render_form(cat, place, city_value, p25, med, p75, n_contractors=0):
     """Quote-request CTA. Backend: see LEAD_ENDPOINT TODO in the script."""
     brackets = [
         f"Under {money(p25)}",
@@ -741,11 +784,14 @@ def render_form(cat, place, city_value, p25, med, p75):
         "Not sure yet",
     ]
     opts = "\n".join(f'          <option>{esc(b)}</option>' for b in brackets)
-    return f"""<section class="quote">
+    proof = (f" {n_contractors} contractors pulled {cat['job']} permits "
+             f"in {esc(place)} recently, so quotes come from people "
+             f"actually doing this work here.") if n_contractors >= 3 else ""
+    return f"""<section class="quote" id="get-quotes">
   <h2>Get quotes for your {esc(cat['job'])}</h2>
   <p>Free for homeowners. Your request goes to local
   contractors who actively do this work in {esc(place)} — never blasted to a
-  list. Contractors reply directly; there's no obligation to hire anyone.</p>
+  list. Contractors reply directly; there's no obligation to hire anyone.{proof}</p>
   <form id="q-form">
     <div class="row2">
       <input type="text" id="q-name" placeholder="Your name" required>
@@ -770,7 +816,8 @@ def render_form(cat, place, city_value, p25, med, p75):
     <textarea id="q-details" placeholder="Tell the contractors about the project (size, timing, anything that matters)"></textarea>
     <label class="consent"><input type="checkbox" id="q-consent" required>
       <span>By submitting, I agree that matched local contractors may contact me about my project by phone, text, or email.</span></label>
-    <button type="submit">Request quotes</button>
+    <button type="submit">Get my free quotes</button>
+    <p class="trust">Free · No obligation · Your number goes to at most 2 local contractors — never sold, never shared with anyone else.</p>
     <p id="q-msg"></p>
   </form>
 </section>
@@ -887,7 +934,13 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
             f'in {esc(p["place"])}</a>')
     links_html = "\n".join(link_lines)
     city_value = "" if place == REGION_NAME else place
-    form_html = render_form(cat, place, city_value, p25, med, p75)
+    n_contractors = len(top_contractors(records, limit=100000))
+    form_html = render_form(cat, place, city_value, p25, med, p75,
+                            n_contractors=n_contractors)
+    sticky_html = (STICKY_TMPL
+                   .replace("__JOBCAP__", esc(job[:1].upper() + job[1:]))
+                   .replace("__PLACE__", esc(place))
+                   .replace("__MED__", money(med)))
     faqs = faq_for(cat, place, n, med, p25, p75, span,
                    source_answer=cat.get("faq_source"))
     note_fn = cat.get("data_note")
@@ -940,7 +993,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
 {ld_html}
 <style>{CSS}</style>
 </head>
-<body>
+<body class="guide">
 {HEADER}
 <main>
   <div class="crumb"><a href="/">PermitPicker</a> / <a href="/costs/">Cost guides</a> / {esc(cat['label'])} — {esc(place)}</div>
@@ -952,6 +1005,10 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     <div class="stat"><b>{money(med)}</b><small>typical (median) declared value</small></div>
     <div class="stat"><b>{money(p25)} – {money(p75)}</b><small>where most jobs fall (middle 50%)</small></div>
     <div class="stat"><b>{n}</b><small>permitted jobs in {esc(place)}, {esc(span)}</small></div>
+  </div>
+  <div class="hero-cta">
+    <a class="cta-btn quote-cta" data-cta="hero" href="#get-quotes">Get {esc(job)} quotes in {esc(place)}</a>
+    <span class="cta-note">Free · no obligation · at most 2 local contractors, never a list</span>
   </div>
   <div class="card">
     <h2>How declared values spread out</h2>
@@ -984,6 +1041,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
   </div>
   <p class="rank-note">Data generated {esc(gen_date)} from public permit records (Wake County, Raleigh &amp; Cary).</p>
 </main>
+{sticky_html}
 {FOOTER}
 </body>
 </html>
