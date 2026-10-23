@@ -272,6 +272,7 @@ def render_hub(cells, rankings, profiles, gen_date):
 <meta property="og:url" content="{SITE}/contractors/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{cg.GA_HEAD}
 {ld_html}
 <style>{cg.CSS}{EXTRA_CSS}</style>
 </head>
@@ -382,6 +383,7 @@ def render_ranking(cell, ranking, profile_slugs, all_cells, gen_date):
 <meta property="og:url" content="{SITE}/contractors/{cell['slug']}/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{cg.GA_HEAD}
 {ld_html}
 <style>{cg.CSS}{EXTRA_CSS}</style>
 </head>
@@ -535,6 +537,7 @@ def render_profile(profile, cells, gen_date):
 <meta property="og:url" content="{SITE}/contractors/{profile['slug']}/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{cg.GA_HEAD}
 {ld_html}
 <style>{cg.CSS}{EXTRA_CSS}</style>
 </head>
