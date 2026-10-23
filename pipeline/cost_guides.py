@@ -656,6 +656,10 @@ CSS = """
   .cta-note { font-size: 13px; color: #55606a; }
   @media (prefers-color-scheme: dark) { .cta-note { color: #9fb0c0; } }
   .quote .trust { font-size: 12.5px; opacity: .85; margin: 2px 0 0; line-height: 1.45; }
+  #q-reveal { margin-top: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.28); border-radius: 8px; padding: 12px 14px; }
+  #q-reveal h3 { font-size: 15px; margin-bottom: 8px; }
+  #q-reveal .reveal-co { font-size: 14px; margin: 7px 0; }
+  #q-reveal .call { margin-left: 6px; }
   body.guide { padding-bottom: 64px; }
   .sticky-cta { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: #102e36; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -2px 10px rgba(0,0,0,.25); }
   .sticky-cta .sc-text { font-size: 13.5px; line-height: 1.35; }
@@ -774,7 +778,8 @@ def render_faq(faqs):
   </div>"""
 
 
-def render_form(cat, place, city_value, p25, med, p75, n_contractors=0):
+def render_form(cat, place, city_value, p25, med, p75, n_contractors=0,
+                reveal=()):
     """Quote-request CTA. Backend: see LEAD_ENDPOINT TODO in the script."""
     brackets = [
         f"Under {money(p25)}",
@@ -787,11 +792,21 @@ def render_form(cat, place, city_value, p25, med, p75, n_contractors=0):
     proof = (f" {n_contractors} contractors pulled {cat['job']} permits "
              f"in {esc(place)} recently, so quotes come from people "
              f"actually doing this work here.") if n_contractors >= 3 else ""
+    # Reveal-on-submit (2026-10-23): phone numbers no longer print on
+    # the public page. The top-2 matched contractors' numbers ride
+    # along base64-encoded and are revealed on-page only after a
+    # successful quote submission — the submission is the gate.
+    import base64 as _b64
+    reveal_b64 = (_b64.b64encode(json.dumps(list(reveal)).encode())
+                  .decode() if reveal else "")
+    reveal_note = (" Submit, and the direct phone numbers for the top "
+                   "matches appear right here on this page — no "
+                   "waiting.") if reveal else ""
     return f"""<section class="quote" id="get-quotes">
   <h2>Get quotes for your {esc(cat['job'])}</h2>
   <p>Free for homeowners. Your request goes to local
   contractors who actively do this work in {esc(place)} — never blasted to a
-  list. Contractors reply directly; there's no obligation to hire anyone.{proof}</p>
+  list. Contractors reply directly; there's no obligation to hire anyone.{proof}{reveal_note}</p>
   <form id="q-form">
     <div class="row2">
       <input type="text" id="q-name" placeholder="Your name" required>
@@ -820,6 +835,7 @@ def render_form(cat, place, city_value, p25, med, p75, n_contractors=0):
     <p class="trust">Free · No obligation · Your number goes to at most 2 local contractors — never sold, never shared with anyone else.</p>
     <p id="q-msg"></p>
   </form>
+  <div id="q-reveal" hidden></div>
 </section>
 <script>
 // Backend: posts to the Supabase `quote_requests` table (created via
@@ -827,6 +843,7 @@ def render_form(cat, place, city_value, p25, med, p75, n_contractors=0):
 const LEAD_ENDPOINT = "{SUPABASE_URL}/rest/v1/quote_requests";
 const SUPABASE_URL = "{SUPABASE_URL}";
 const SUPABASE_ANON_KEY = "PASTE_ANON_KEY_HERE";
+const REVEAL_B64 = "{reveal_b64}";
 document.getElementById("q-form").addEventListener("submit", async e => {{
   e.preventDefault();
   const msg = document.getElementById("q-msg");
@@ -861,6 +878,29 @@ document.getElementById("q-form").addEventListener("submit", async e => {{
     if (res.ok) {{
       msg.className = "ok";
       if (window.gtag) gtag("event", "quote_request", {{job_type: payload.job_type, city: payload.city, page_path: location.pathname}});
+      try {{
+        const items = JSON.parse(atob(REVEAL_B64 || "W10="));
+        if (items.length) {{
+          const box = document.getElementById("q-reveal");
+          box.innerHTML = "";
+          const h = document.createElement("h3");
+          h.textContent = "Your matched contractors — call them now, or they'll call you:";
+          box.appendChild(h);
+          items.forEach(function (it) {{
+            const p = document.createElement("p");
+            p.className = "reveal-co";
+            p.appendChild(document.createTextNode(it.name + " — typical project " + it.typical + " "));
+            const a = document.createElement("a");
+            a.href = "tel:" + it.phone.replace(/[^0-9+]/g, "");
+            a.className = "call";
+            a.textContent = "Call " + it.phone;
+            p.appendChild(a);
+            box.appendChild(p);
+          }});
+          box.hidden = false;
+          box.scrollIntoView({{behavior: "smooth", block: "center"}});
+        }}
+      }} catch (e) {{}}
       msg.textContent = "Request sent — up to 2 local contractors can now get in touch about your project.";
       e.target.reset();
     }} else {{
@@ -904,7 +944,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
         rows_html = "\n".join(
             f"""        <tr><td><b>{esc(c['name'])}</b></td>
           <td>{c['count']}</td><td>{money(c['median'])}</td>
-          <td>{f'<a class="call" href="{tel_href(c["phone"])}">Call</a>' if c['phone'] else '—'}</td></tr>"""
+          <td><a class="call" href="#get-quotes">Get contact details</a></td></tr>"""
             for c in contractors)
         co_html = f"""<div class="card">
     <h2>Contractors actively doing this work in {esc(place)}</h2>
@@ -935,8 +975,11 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     links_html = "\n".join(link_lines)
     city_value = "" if place == REGION_NAME else place
     n_contractors = len(top_contractors(records, limit=100000))
+    reveal = [{"name": c["name"], "phone": c["phone"],
+               "typical": money(c["median"])}
+              for c in contractors if c["phone"]][:2]
     form_html = render_form(cat, place, city_value, p25, med, p75,
-                            n_contractors=n_contractors)
+                            n_contractors=n_contractors, reveal=reveal)
     sticky_html = (STICKY_TMPL
                    .replace("__JOBCAP__", esc(job[:1].upper() + job[1:]))
                    .replace("__PLACE__", esc(place))
