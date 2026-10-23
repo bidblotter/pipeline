@@ -136,6 +136,23 @@ DATA_PATH = os.path.join(ROOT, "web", "data", "permits.json")
 OUT_DIR = os.path.join(ROOT, "web", "costs")
 SITEMAP_PATH = os.path.join(ROOT, "web", "sitemap.xml")
 SITE = "https://permitpicker.com"
+
+# Google Analytics 4 (property created by Andrew 2026-10-23 under
+# permitpicker@gmail.com). The tel: click listener is registered
+# here once; quote-form and signup success handlers fire their own
+# conversion events (quote_request / permitpulse_signup).
+GA_HEAD = """<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-VW5K8L3BYS"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-VW5K8L3BYS');
+document.addEventListener('click', function(e){
+  var a = e.target && e.target.closest ? e.target.closest('a[href^="tel:"]') : null;
+  if (a) { gtag('event', 'call_click', {phone: a.getAttribute('href').replace('tel:', ''), page_path: location.pathname}); }
+});
+</script>"""
 REGION_NAME = "Raleigh area"
 REGION_SLUG = ""  # region pages live at /costs/<category>/
 CITY_MIN_N = 25
@@ -796,6 +813,7 @@ document.getElementById("q-form").addEventListener("submit", async e => {{
     }});
     if (res.ok) {{
       msg.className = "ok";
+      if (window.gtag) gtag("event", "quote_request", {{job_type: payload.job_type, city: payload.city, page_path: location.pathname}});
       msg.textContent = "Request sent — up to 2 local contractors can now get in touch about your project.";
       e.target.reset();
     }} else {{
@@ -918,6 +936,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
 <meta property="og:url" content="{url}">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{GA_HEAD}
 {ld_html}
 <style>{CSS}</style>
 </head>
@@ -1028,6 +1047,7 @@ def render_index(cells, gen_date):
 <meta property="og:url" content="{SITE}/costs/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{GA_HEAD}
 {ld_html}
 <style>{CSS}</style>
 </head>
