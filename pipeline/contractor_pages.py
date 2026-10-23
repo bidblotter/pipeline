@@ -236,6 +236,25 @@ def render_hub(cells, rankings, profiles, gen_date):
       <div class="cities"><a href="/costs/{cat['id']}/">See what a {esc(cat['job'])} costs</a></div>
     </div>""")
     cards_html = "\n".join(cards)
+    hub_items = []
+    for i, cell in enumerate(cells, 1):
+        hub_items.append({
+            "@type": "ListItem", "position": i,
+            "name": f"{ranking_label(cell['cat'])} in {place_phrase(cell)}",
+            "url": f"{SITE}/contractors/{cell['slug']}/"})
+    ld_html = cg.ld_script({
+        "@context": "https://schema.org",
+        "@graph": [
+            {"@type": "CollectionPage",
+             "name": "Local contractor rankings by permit activity | PermitPicker",
+             "url": f"{SITE}/contractors/",
+             "isPartOf": {"@type": "WebSite", "name": "PermitPicker",
+                          "url": f"{SITE}/"}},
+            cg.breadcrumb_ld([("PermitPicker", f"{SITE}/"),
+                              ("Contractors", f"{SITE}/contractors/")]),
+            {"@type": "ItemList", "itemListElement": hub_items},
+        ],
+    })
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -251,6 +270,7 @@ def render_hub(cells, rankings, profiles, gen_date):
 <meta property="og:url" content="{SITE}/contractors/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{ld_html}
 <style>{cg.CSS}{EXTRA_CSS}</style>
 </head>
 <body>
@@ -321,6 +341,30 @@ def render_ranking(cell, ranking, profile_slugs, all_cells, gen_date):
             siblings.append(
                 f'<a href="/contractors/{other["slug"]}/">{esc(ranking_label(other["cat"]))} in {esc(place)}</a>')
     siblings_html = "\n      ".join(siblings)
+    rank_items = []
+    for i, c in enumerate(top, 1):
+        item = {"@type": "ListItem", "position": i, "name": c["name"]}
+        prof = profile_slugs.get(c["key"])
+        if prof:
+            item["url"] = f"{SITE}/contractors/{prof}/"
+        rank_items.append(item)
+    ld_html = cg.ld_script({
+        "@context": "https://schema.org",
+        "@graph": [
+            {"@type": "WebPage", "name": title,
+             "url": f"{SITE}/contractors/{cell['slug']}/",
+             "isPartOf": {"@type": "WebSite", "name": "PermitPicker",
+                          "url": f"{SITE}/"}},
+            cg.breadcrumb_ld([
+                ("PermitPicker", f"{SITE}/"),
+                ("Contractors", f"{SITE}/contractors/"),
+                (f"{label} — {cell['place']}",
+                 f"{SITE}/contractors/{cell['slug']}/")]),
+            {"@type": "ItemList",
+             "name": f"{label} in {place} — ranked by permitted activity",
+             "itemListElement": rank_items},
+        ],
+    })
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -336,6 +380,7 @@ def render_ranking(cell, ranking, profile_slugs, all_cells, gen_date):
 <meta property="og:url" content="{SITE}/contractors/{cell['slug']}/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{ld_html}
 <style>{cg.CSS}{EXTRA_CSS}</style>
 </head>
 <body>
@@ -453,6 +498,26 @@ def render_profile(profile, cells, gen_date):
   </section>"""
     call_html = (f'<a class="call" href="{cg.tel_href(profile["phone"])}">Call {esc(profile["phone"])}</a>'
                  if profile["phone"] else "")
+    org = {"@type": "Organization", "name": name,
+           "url": f"{SITE}/contractors/{profile['slug']}/",
+           "description": (f"Aggregate public permit activity profile for "
+                           f"{name} across PermitPicker homeowner "
+                           f"categories. Activity is not a quality rating "
+                           f"or endorsement.")}
+    if profile["phone"]:
+        org["telephone"] = profile["phone"]
+    ld_html = cg.ld_script({
+        "@context": "https://schema.org",
+        "@graph": [
+            {"@type": "ProfilePage",
+             "url": f"{SITE}/contractors/{profile['slug']}/",
+             "mainEntity": org},
+            cg.breadcrumb_ld([
+                ("PermitPicker", f"{SITE}/"),
+                ("Contractors", f"{SITE}/contractors/"),
+                (name, f"{SITE}/contractors/{profile['slug']}/")]),
+        ],
+    })
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -468,6 +533,7 @@ def render_profile(profile, cells, gen_date):
 <meta property="og:url" content="{SITE}/contractors/{profile['slug']}/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{ld_html}
 <style>{cg.CSS}{EXTRA_CSS}</style>
 </head>
 <body>
