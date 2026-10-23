@@ -76,6 +76,8 @@ jobs:
         run: python pipeline/export.py
       - name: Build homeowner cost guides
         run: python pipeline/cost_guides.py
+      - name: Build contractor rankings and profiles
+        run: python pipeline/contractor_pages.py
       - name: Rebuild prospect list
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
