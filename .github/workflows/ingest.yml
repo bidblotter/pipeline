@@ -182,6 +182,13 @@ jobs:
       - name: Build contractor vCards
         run: |
           python pipeline/build_vcards.py
+      - name: Publish internal data copies (private Storage)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python pipeline/publish_internal.py
+      - name: Strip phone numbers from public export
+        run: python pipeline/strip_public.py
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
