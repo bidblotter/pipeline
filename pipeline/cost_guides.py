@@ -333,6 +333,41 @@ def _accessory_subject(desc):
         not any(m in desc for m in ACCESSORY_EXCLUDE)
 
 
+def _screened_porch_note(records, place):
+    """Combos disclosure: most screened porches here were permitted
+    together with a deck, and the declared value covers both."""
+    deck = next(c for c in CATEGORIES if c["id"] == "deck")
+    both = sum(1 for r in records if deck["match"](r))
+    if not both:
+        return None
+    return (f"Many screened porches are permitted together with a deck: "
+            f"{both} of the {len(records)} jobs on this page also appear "
+            f"in our deck cost guide, and the declared value covers the "
+            f"combined project, not the porch alone.")
+
+
+def _solar_note(records, place):
+    """Cary-heavy disclosure (Andrew approved, labeled, 2026-10-22):
+    Raleigh/Wake solar jobs are trade permits with no declared value,
+    so the valued records behind this guide are almost all Cary's."""
+    total = len(records)
+    cary = sum(1 for r in records if r.get("source_feed") == "cary")
+    if not total:
+        return None
+    return (f"Solar permits in Raleigh and Wake County are trade permits "
+            f"that do not declare a project value, so the valued records "
+            f"behind this guide come almost entirely from Cary — {cary} "
+            f"of these {total} jobs are Cary permits. Treat these "
+            f"figures as Cary data, not a Raleigh-area average.")
+
+
+SOLAR_FAQ_SOURCE = (
+    "They are computed from public permit records — with one gap: "
+    "Raleigh and Wake County solar jobs are permitted as trade permits "
+    "that do not declare a project value, so nearly all valued solar "
+    "records are Cary building permits. See the data note on this page.")
+
+
 CATEGORIES = [
     {"id": "deck", "job": "deck", "label": "Deck",
      "match": _union("Deck", _desc_slice(
@@ -356,6 +391,27 @@ CATEGORIES = [
      "label": "Kitchen remodel", "match": _remodel("kitchen")},
     {"id": "bathroom-remodel", "job": "bathroom remodel",
      "label": "Bathroom remodel", "match": _remodel("bath")},
+    # Screened porch (added 2026-10-22, expansion audit): description
+    # slice only, same guards as the other slices. Pool enclosures are
+    # a different product and are excluded. Most hits are porch+deck
+    # combos — the page carries a data note saying so.
+    {"id": "screened-porch", "job": "screened porch",
+     "label": "Screened porch",
+     "match": _desc_slice(
+         re.compile(r"\b(screened|screen)\s+(porch|room|enclosure)\b"
+                    r"|\bporch\s+(enclosure|screen)"),
+         extra=lambda d: "pool" not in d),
+     "data_note": _screened_porch_note},
+    # Solar (added 2026-10-22, expansion audit; Andrew approved with
+    # the Cary-heavy label): description slice only. Wake's
+    # "Photovoltaic (Solar Panel)" work-class records are trade
+    # permits with $0 declared values, so the valued slice is
+    # effectively Cary building permits — disclosed on the page via
+    # data_note and a category-specific FAQ source answer.
+    {"id": "solar", "job": "solar panel system",
+     "label": "Solar panel system",
+     "match": _desc_slice(re.compile(r"\bsolar\b|\bphotovoltaic\b")),
+     "data_note": _solar_note, "faq_source": SOLAR_FAQ_SOURCE},
 ]
 
 # ---------------------------------------------------------------------------
@@ -610,7 +666,7 @@ def breadcrumb_ld(items):
     }
 
 
-def faq_for(cat, place, n, med, p25, p75, span):
+def faq_for(cat, place, n, med, p25, p75, span, source_answer=None):
     """Data-backed FAQs for a cost guide. Every number in an answer comes
     from this page's own slice — nothing is invented, and no permit-law
     thresholds are asserted (rules vary by jurisdiction and job)."""
@@ -622,6 +678,7 @@ def faq_for(cat, place, n, med, p25, p75, span):
          f"{span}. Most jobs — the middle 50% — fall between "
          f"{money(p25)} and {money(p75)}."),
         ("Where do these cost figures come from?",
+         source_answer or
          "They are computed from public permit records filed in Wake "
          "County, Raleigh & Cary. Each figure is the value the applicant "
          "declared on the permit application for that job, aggregated "
@@ -813,7 +870,12 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     links_html = "\n".join(link_lines)
     city_value = "" if place == REGION_NAME else place
     form_html = render_form(cat, place, city_value, p25, med, p75)
-    faqs = faq_for(cat, place, n, med, p25, p75, span)
+    faqs = faq_for(cat, place, n, med, p25, p75, span,
+                   source_answer=cat.get("faq_source"))
+    note_fn = cat.get("data_note")
+    note = note_fn(records, place) if note_fn else None
+    note_html = (f'    <p><b>Data note.</b> {esc(note)}</p>\n'
+                 if note else "")
     faq_html = render_faq(faqs)
     ld_graph = {
         "@context": "https://schema.org",
@@ -889,7 +951,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     permits are excluded. Figures cover {n} permitted jobs filed
     {esc(span)} and are refreshed daily from public records; the middle
     50% range is a better budgeting guide than any single number.</p>
-  </div>
+{note_html}  </div>
 {co_html}
 {form_html}
 {faq_html}
