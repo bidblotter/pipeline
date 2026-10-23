@@ -25,8 +25,14 @@ changed. The watermark advances ONLY after the Resend send succeeds —
 a failed send exits non-zero and the same rows are retried next run.
 With no new rows the job exits 0 quietly: no email, no state change.
 
-Contractor shortlists use the exact category definitions and ranking
-from cost_guides.py (imported, not copied) over the published dataset.
+Contractor shortlists use the exact category definitions from
+cost_guides.py (imported, not copied) over the published dataset,
+then fit-score the contractors privately for THIS lead (gates:
+phone on file, a permit in the last 120 days, 3+ permits in the
+last year — relaxed in stages for thin cells; points for the
+3–15/yr volume sweet spot, typical-job fit to the lead's budget,
+and recency; subscribers first). The public site's rankings are
+untouched and remain pure permit activity.
 The dataset is fetched from the live site because web/data/ is not in
 git (same pattern as send-pitch.yml); a local path may be passed for
 testing. Shortlists are best-effort: if the dataset cannot be loaded,
@@ -41,6 +47,8 @@ Usage:
       [--to andrew@permitpicker.com]
 """
 import argparse
+import re
+from collections import Counter
 import datetime as dt
 import json
 import os
@@ -213,54 +221,209 @@ def roster_badge(contractor, cat, roster):
     return ""
 
 
-def shortlist(cat, city_raw, records, roster):
-    """Top contractors for the category, city-scoped when the lead's
-    city has records in it, else region-wide. Subscribers for this
-    category float to the top (they get leads first); the rest keep
-    activity-rank order. Returns (scope_label, top)."""
+def _parse_budget(text):
+    """Lead budget is one of the form's brackets ('Under $25,000',
+    '$25,000 – $41,000', 'Over $59,000', 'Not sure yet'). Returns
+    (lo, hi) in dollars, either side None when open-ended, or None
+    when the budget carries no numbers."""
+    nums = [float(x.replace(",", ""))
+            for x in re.findall(r"\$([\d,]+)", text or "")]
+    if not nums:
+        return None
+    t = (text or "").lower()
+    if t.startswith("under"):
+        return (None, nums[0])
+    if t.startswith("over"):
+        return (nums[0], None)
+    if len(nums) >= 2:
+        return (nums[0], nums[1])
+    return None
+
+
+def _contractor_stats(records):
+    """Per-contractor aggregates over a record set (same grouping as
+    cost_guides.top_contractors, plus dates for recency/volume)."""
+    groups = {}
+    for r in records:
+        raw = (r.get("contractor") or "").strip()
+        if not cg.is_contractor(raw):
+            continue
+        key = cg.contractor_key(raw)
+        if not key:
+            continue
+        g = groups.setdefault(key, {"names": [], "displays": [],
+                                    "vals": [], "phones": Counter(),
+                                    "dates": []})
+        g["names"].append(raw)
+        if r.get("contractor_display"):
+            g["displays"].append(r["contractor_display"])
+        try:
+            g["vals"].append(float(r["valuation"]))
+        except (TypeError, ValueError):
+            pass
+        ph = (r.get("contractor_phone") or "").strip()
+        if ph:
+            g["phones"][ph] += 1
+        d = cg.record_date(r)
+        if d:
+            g["dates"].append(d)
+    out = []
+    for key, g in groups.items():
+        name = (Counter(g["displays"]).most_common(1)[0][0]
+                if g["displays"] else cg.display_for(key, g["names"]))
+        if not name:
+            continue
+        vals = sorted(g["vals"])
+        out.append({
+            "name": name,
+            "phone": (g["phones"].most_common(1)[0][0]
+                      if g["phones"] else ""),
+            "count": len(g["dates"]) or len(g["names"]),
+            "median": vals[len(vals) // 2] if vals else 0.0,
+            "latest": max(g["dates"]) if g["dates"] else "",
+            "dates": g["dates"],
+        })
+    return out
+
+
+def _fit_score(c, as_of, budget):
+    """Transparent points, Andrew's criteria (2026-10-23): medium
+    volume is the sweet spot; job value scores as a MATCH to the
+    lead's budget; recency breaks toward active-now. Returns
+    (score, [reason phrases])."""
+    pts, why = 0, []
+    d12 = [d for d in c["dates"]
+           if (as_of - dt.date.fromisoformat(d)).days <= 365] \
+        if c["dates"] else []
+    n12 = len(d12)
+    c["count_12m"] = n12
+    if 3 <= n12 <= 15:
+        pts += 3
+        why.append(f"{n12} permits in the last year (sweet spot)")
+    elif 16 <= n12 <= 25:
+        pts += 1
+        why.append(f"{n12} permits in the last year (large firm)")
+    elif n12 > 25:
+        why.append(f"{n12} permits in the last year (very large firm)")
+    elif n12:
+        why.append(f"{n12} permit(s) in the last year (light presence)")
+    if budget and c["median"]:
+        lo, hi = budget
+        med = c["median"]
+        if (lo is None or med >= lo) and (hi is None or med <= hi):
+            pts += 3
+            why.append(f"typical job {cg.money(med)} fits the budget")
+        else:
+            edge = hi if (hi is not None and med > hi) else lo
+            if edge and abs(med - edge) <= 0.25 * edge:
+                pts += 1
+                why.append(f"typical job {cg.money(med)} near the budget")
+            else:
+                why.append(f"typical job {cg.money(med)} off the "
+                           "budget band")
+    elif c["median"]:
+        why.append(f"typical job {cg.money(c['median'])}")
+    if c["latest"]:
+        age = (as_of - dt.date.fromisoformat(c["latest"])).days
+        c["age_days"] = age
+        if age <= 45:
+            pts += 2
+            why.append(f"last permit {age}d ago")
+        elif age <= 120:
+            pts += 1
+            why.append(f"last permit {age}d ago")
+        else:
+            why.append(f"last permit {age}d ago (gone quiet)")
+    return pts, why
+
+
+def _passes(c, stage):
+    """Gates by relaxation stage. Stage 0 = Andrew's gates (phone,
+    active within 120 days, 3+ permits in the last year). Higher
+    stages relax so thin cells still produce a pick list."""
+    if stage == 0:
+        return bool(c["phone"]) and c.get("age_days", 9999) <= 120 \
+            and c.get("count_12m", 0) >= 3
+    if stage == 1:
+        return bool(c["phone"]) and c.get("age_days", 9999) <= 180 \
+            and c.get("count_12m", 0) >= 1
+    return bool(c["phone"])
+
+
+def fit_shortlist(cat, city_raw, records, lead):
+    """Fit-scored contractor picks for one lead. Returns
+    (scope_label, relaxed_note, [(contractor, score, reasons)]).
+    City-scoped when the lead's city has category records, else
+    region-wide (same scoping as the old count ranking)."""
     matched = [r for r in records if cat["match"](r)]
+    all_dates = [cg.record_date(r) for r in records if cg.record_date(r)]
+    as_of = dt.date.fromisoformat(max(all_dates)) if all_dates \
+        else today_et()
+    budget = _parse_budget((lead or {}).get("budget"))
     disp = cg.city_display(city_raw or "")
-    top = None
+    pool, scope = matched, cg.REGION_NAME
     if disp:
         city_recs = [r for r in matched
                      if cg.city_display(r.get("city")) == disp]
         if city_recs:
-            top = cg.top_contractors(city_recs, limit=8)
-            scope = disp
-    if top is None:
-        top = cg.top_contractors(matched, limit=8)
-        scope = cg.REGION_NAME
+            pool, scope = city_recs, disp
+    stats = _contractor_stats(pool)
+    scored = []
+    for c in stats:
+        pts, why = _fit_score(c, as_of, budget)
+        scored.append((c, pts, why))
+    for stage in (0, 1, 2):
+        kept = [x for x in scored if _passes(x[0], stage)]
+        if kept:
+            note = "" if stage == 0 else (
+                " — thin local field, gates relaxed"
+                if stage == 1 else
+                " — very thin field, showing any contractor with a "
+                "phone on file")
+            kept.sort(key=lambda x: (-x[1], -x[0].get("count_12m", 0),
+                                     x[0].get("age_days", 9999)))
+            return scope, note, kept[:8]
+    return scope, "", []
+
+
+def shortlist(cat, city_raw, records, roster, lead=None):
+    """Subscriber-first ordering over the fit-scored pool (Andrew's
+    delivery rule), then fit score. Returns (scope_label, note, top)
+    where top is [(contractor, score, reasons)] capped at 5."""
+    scope, note, scored = fit_shortlist(cat, city_raw, records, lead)
 
     def sub_entry(c):
         return _roster_match(
             [x for x in roster["subscribers"]
              if (x.get("status") or "active") == "active"], c)
 
-    subs = [c for c in top if sub_entry(c) is not None]
-    # Dead-lead credit holders jump the subscriber queue.
-    subs.sort(key=lambda c: 0 if (sub_entry(c) or {}).get(
+    subs = [x for x in scored if sub_entry(x[0]) is not None]
+    subs.sort(key=lambda x: 0 if (sub_entry(x[0]) or {}).get(
         "priority_next") else 1)
-    rest = [c for c in top if sub_entry(c) is None]
-    return scope, (subs + rest)[:5]
+    rest = [x for x in scored if sub_entry(x[0]) is None]
+    return scope, note, (subs + rest)[:5]
 
 
-def format_shortlist(cat, city_raw, records, roster):
-    scope, top = shortlist(cat, city_raw, records, roster)
+def format_shortlist(cat, city_raw, records, roster, lead=None):
+    scope, note, top = shortlist(cat, city_raw, records, roster, lead)
     if city_raw and scope == cg.REGION_NAME:
         head = (f"Top matching contractors — {scope} "
-                f"(region-wide; no {city_raw} ranking):")
+                f"(region-wide; no {city_raw} ranking){note}:")
     else:
-        head = f"Top matching contractors — {scope}:"
+        head = f"Top matching contractors — {scope}{note}:"
     if not top:
         return [head, "  (no contractor names in the published permit "
                       "data for this category)"]
-    lines = [head]
-    for i, c in enumerate(top, 1):
+    lines = [head,
+             "  (fit-scored for this lead: phone + active + 3–15 "
+             "permits/yr preferred, typical job matched to budget; "
+             "subscribers first)"]
+    for i, (c, pts, why) in enumerate(top, 1):
         phone = c["phone"] or "no phone on file"
         lines.append(
-            f"  {i}. {c['name']} — {c['count']} {cat['job']} permits, "
-            f"typical project {cg.money(c['median'])} — {phone}"
+            f"  {i}. {c['name']} — {phone}"
             f"{roster_badge(c, cat, roster)}")
+        lines.append(f"       fit {pts}: " + " · ".join(why))
     return lines
 
 
@@ -364,7 +527,7 @@ def lead_block(lead, records, roster):
                      "(unavailable — dataset could not be loaded)")
     else:
         lines += format_shortlist(cat, lead.get("city"), records,
-                                  roster)
+                                  roster, lead)
     return lines
 
 
