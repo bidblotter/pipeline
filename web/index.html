@@ -627,7 +627,7 @@ function render() {
       <details><summary>Details</summary>
         <div style="margin-top:6px">
           ${coName(p) ? `Contractor: <b>${esc(coName(p))}</b><br>` : ""}
-          ${p.contractor_phone ? `Phone: ${esc(p.contractor_phone)}<br>` : ""}
+          ${coName(p) ? `<a href="/permitpulse/">Get contractor contact details</a><br>` : ""}
           ${p.contractor_license ? `License: ${esc(p.contractor_license)}<br>` : ""}
           ${p.permit_type ? `Permit type: ${esc(p.permit_type)}<br>` : ""}
           ${p.work_class ? `Work class: ${esc(p.work_class)}<br>` : ""}
