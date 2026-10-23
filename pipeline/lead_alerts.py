@@ -7,6 +7,12 @@ polls for rows with id greater than a watermark, emails a work-order
 digest to Andrew (lead details + a shortlist of top-matching local
 contractors for each lead), and only then advances the watermark.
 
+Roster: state/lead_roster.json lists who already got a free lead
+("freebies") and who subscribes ("subscribers"). Andrew maintains it
+by telling Muse ("freebie sent to X", "X subscribed"); the alert
+badges shortlist entries from it and floats subscribers to the top.
+The roster is read-only here — the workflow never writes it.
+
 State: state/lead_alerts.json in this repo, {"last_alerted_id": N}. The
 lead-alerts workflow commits the file back after a run in which it
 changed. The watermark advances ONLY after the Resend send succeeds —
@@ -125,22 +131,101 @@ def find_category(job_type):
     return None
 
 
-def shortlist(cat, city_raw, records):
-    """Top-5 contractors for the category, city-scoped when the lead's
-    city has records in it, else region-wide. Returns (scope_label, top)
-    where scope_label says which of the two happened."""
+# ---------------------------------------------------------------------------
+# Roster (freebies + subscribers) — state/lead_roster.json, maintained by
+# Andrew via Muse; read-only in this job. Entries:
+#   {"contractor": name, "phone": digits-or-formatted,
+#    "category": cost_guides id or "all", "city": display city or "",
+#    "date"/"since": "YYYY-MM-DD", "status": "active" (subscribers)}
+# ---------------------------------------------------------------------------
+
+DEFAULT_ROSTER = os.path.join(ROOT, "state", "lead_roster.json")
+
+
+def load_roster(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        return {"freebies": data.get("freebies", []),
+                "subscribers": data.get("subscribers", [])}
+    except (OSError, ValueError):
+        return {"freebies": [], "subscribers": []}
+
+
+def _norm_name(name):
+    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
+
+
+def _digits(phone):
+    return "".join(ch for ch in (phone or "") if ch.isdigit())
+
+
+def _roster_match(entries, contractor):
+    """First roster entry matching this contractor by phone digits,
+    else by normalized name. None when no match."""
+    cphone = _digits(contractor.get("phone"))
+    cname = _norm_name(contractor.get("name"))
+    for e in entries:
+        ephone = _digits(e.get("phone"))
+        if cphone and ephone and cphone[-10:] == ephone[-10:]:
+            return e
+        if cname and cname == _norm_name(e.get("contractor")):
+            return e
+    return None
+
+
+def _cell_relevant(entry, cat):
+    """True when a roster entry covers this lead's category."""
+    ec = (entry.get("category") or "all").strip().lower()
+    return ec in ("all", cat["id"], cat["label"].lower())
+
+
+def roster_badge(contractor, cat, roster):
+    """Short status tag for a shortlist line, or '' when the contractor
+    has no roster history (their free lead is still available)."""
+    sub = _roster_match(
+        [e for e in roster["subscribers"]
+         if (e.get("status") or "active") == "active"], contractor)
+    if sub is not None:
+        return " ★ SUBSCRIBER" if _cell_relevant(sub, cat) \
+            else " ★ subscriber (other trade/city)"
+    free = _roster_match(roster["freebies"], contractor)
+    if free is not None:
+        return f" ✓ free lead sent {free.get('date') or ''}".rstrip()
+    return ""
+
+
+def shortlist(cat, city_raw, records, roster):
+    """Top contractors for the category, city-scoped when the lead's
+    city has records in it, else region-wide. Subscribers for this
+    category float to the top (they get leads first); the rest keep
+    activity-rank order. Returns (scope_label, top)."""
     matched = [r for r in records if cat["match"](r)]
     disp = cg.city_display(city_raw or "")
+    top = None
     if disp:
         city_recs = [r for r in matched
                      if cg.city_display(r.get("city")) == disp]
         if city_recs:
-            return disp, cg.top_contractors(city_recs, limit=5)
-    return cg.REGION_NAME, cg.top_contractors(matched, limit=5)
+            top = cg.top_contractors(city_recs, limit=8)
+            scope = disp
+    if top is None:
+        top = cg.top_contractors(matched, limit=8)
+        scope = cg.REGION_NAME
+
+    def is_sub(c):
+        e = _roster_match(
+            [x for x in roster["subscribers"]
+             if (x.get("status") or "active") == "active"], c)
+        return e is not None and _cell_relevant(e, cat)
+
+    subs = [c for c in top if is_sub(c)]
+    rest = [c for c in top if not is_sub(c)]
+    return scope, (subs + rest)[:5]
 
 
-def format_shortlist(cat, city_raw, records):
-    scope, top = shortlist(cat, city_raw, records)
+def format_shortlist(cat, city_raw, records, roster):
+    scope, top = shortlist(cat, city_raw, records, roster)
     if city_raw and scope == cg.REGION_NAME:
         head = (f"Top matching contractors — {scope} "
                 f"(region-wide; no {city_raw} ranking):")
@@ -154,7 +239,8 @@ def format_shortlist(cat, city_raw, records):
         phone = c["phone"] or "no phone on file"
         lines.append(
             f"  {i}. {c['name']} — {c['count']} {cat['job']} permits, "
-            f"typical project {cg.money(c['median'])} — {phone}")
+            f"typical project {cg.money(c['median'])} — {phone}"
+            f"{roster_badge(c, cat, roster)}")
     return lines
 
 
@@ -177,7 +263,7 @@ def fmt_ts(iso):
         return t.astimezone(dt.timezone.utc).strftime("%b %d, %Y %H:%M UTC")
 
 
-def lead_block(lead, records):
+def lead_block(lead, records, roster):
     job = lead.get("job_type") or "—"
     city = lead.get("city") or "—"
     lines = [
@@ -202,11 +288,12 @@ def lead_block(lead, records):
         lines.append("Top matching contractors: "
                      "(unavailable — dataset could not be loaded)")
     else:
-        lines += format_shortlist(cat, lead.get("city"), records)
+        lines += format_shortlist(cat, lead.get("city"), records,
+                                  roster)
     return lines
 
 
-def build_email(leads, records):
+def build_email(leads, records, roster):
     if len(leads) == 1:
         lead = leads[0]
         subject = (f"New PermitPicker quote request: "
@@ -220,10 +307,17 @@ def build_email(leads, records):
     for i, lead in enumerate(leads):
         if i:
             lines += ["", "-" * 60, ""]
-        lines += lead_block(lead, records)
+        lines += lead_block(lead, records, roster)
     lines += [
         "",
         "-" * 60,
+        "Roster marks: ★ SUBSCRIBER = paying, deliver first "
+        "(max 2 recipients per lead, subscribers rotated); "
+        "✓ free lead sent = their one freebie is used, next lead "
+        "for them is the subscription pitch; no mark = freebie "
+        "still available. Tell Muse who you sent a freebie to (or "
+        "who subscribed) and the roster updates.",
+        "",
         "Automated alert from the PermitPicker lead pipeline "
         "(GitHub Actions). Leads live in the Supabase quote_requests "
         "table; rankings are by recent permit activity from public "
@@ -265,6 +359,7 @@ def main():
     ap.add_argument("--permits", default=PERMITS_URL,
                     help="Published permits dataset: live URL or local path")
     ap.add_argument("--to", default=DEFAULT_TO)
+    ap.add_argument("--roster", default=DEFAULT_ROSTER)
     args = ap.parse_args()
 
     watermark = load_watermark(args.state)
@@ -281,7 +376,8 @@ def main():
               "sending without shortlists", file=sys.stderr, flush=True)
         records = None
 
-    subject, body = build_email(leads, records)
+    roster = load_roster(args.roster)
+    subject, body = build_email(leads, records, roster)
     send_email(args.to, subject, body)
 
     new_watermark = max(int(lead["id"]) for lead in leads)
