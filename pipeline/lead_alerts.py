@@ -8,10 +8,16 @@ digest to Andrew (lead details + a shortlist of top-matching local
 contractors for each lead), and only then advances the watermark.
 
 Roster: state/lead_roster.json lists who already got a free lead
-("freebies") and who subscribes ("subscribers"). Andrew maintains it
-by telling Muse ("freebie sent to X", "X subscribed"); the alert
-badges shortlist entries from it and floats subscribers to the top.
-The roster is read-only here — the workflow never writes it.
+("freebies"), who subscribes ("subscribers" — one all-access
+subscription, trades/cities on an entry are delivery preferences,
+not gates), and every lead dispatch ("dispatches") with its two
+follow-up checks: homeowner at +2 days, contractor outcome at +7.
+Andrew maintains it by telling Muse ("sent lead 12 to X", "X won
+lead 12"); the alert badges shortlist entries from it, floats
+subscribers to the top, and surfaces due follow-ups. Follow-ups
+ride new-lead alerts, plus a standalone reminder email at most once
+per day (throttled via the state file). The roster is read-only
+here — the workflow never writes it.
 
 State: state/lead_alerts.json in this repo, {"last_alerted_id": N}. The
 lead-alerts workflow commits the file back after a run in which it
@@ -84,18 +90,22 @@ def fetch_new_leads(watermark):
 # State
 # ---------------------------------------------------------------------------
 
-def load_watermark(path):
+def load_state(path):
+    """{"last_alerted_id": N, "followup_reminded": {key: "YYYY-MM-DD"}}.
+    Tolerates the v1 file, which held only the watermark."""
     try:
         with open(path) as f:
-            return int(json.load(f).get("last_alerted_id", 0))
+            data = json.load(f)
+        return {"last_alerted_id": int(data.get("last_alerted_id", 0)),
+                "followup_reminded": data.get("followup_reminded", {})}
     except (OSError, ValueError):
-        return 0
+        return {"last_alerted_id": 0, "followup_reminded": {}}
 
 
-def save_watermark(path, last_id):
+def save_state(path, state):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
-        json.dump({"last_alerted_id": last_id}, f, indent=1)
+        json.dump(state, f, indent=1)
         f.write("\n")
 
 
@@ -147,9 +157,10 @@ def load_roster(path):
         with open(path) as f:
             data = json.load(f)
         return {"freebies": data.get("freebies", []),
-                "subscribers": data.get("subscribers", [])}
+                "subscribers": data.get("subscribers", []),
+                "dispatches": data.get("dispatches", [])}
     except (OSError, ValueError):
-        return {"freebies": [], "subscribers": []}
+        return {"freebies": [], "subscribers": [], "dispatches": []}
 
 
 def _norm_name(name):
@@ -175,9 +186,11 @@ def _roster_match(entries, contractor):
 
 
 def _cell_relevant(entry, cat):
-    """True when a roster entry covers this lead's category."""
+    """All-access model: a subscriber is relevant to every lead. A
+    trades preference on the entry (category set to one trade) only
+    means 'prefers this work' — it never gates delivery."""
     ec = (entry.get("category") or "all").strip().lower()
-    return ec in ("all", cat["id"], cat["label"].lower())
+    return ec in ("all", "", cat["id"], cat["label"].lower())
 
 
 def roster_badge(contractor, cat, roster):
@@ -187,8 +200,13 @@ def roster_badge(contractor, cat, roster):
         [e for e in roster["subscribers"]
          if (e.get("status") or "active") == "active"], contractor)
     if sub is not None:
-        return " ★ SUBSCRIBER" if _cell_relevant(sub, cat) \
-            else " ★ subscriber (other trade/city)"
+        badge = " ★ SUBSCRIBER"
+        if sub.get("priority_next"):
+            badge += " ⚑ priority (dead-lead credit)"
+        ec = (sub.get("category") or "all").strip().lower()
+        if ec not in ("all", "") and not _cell_relevant(sub, cat):
+            badge += " (prefers other work)"
+        return badge
     free = _roster_match(roster["freebies"], contractor)
     if free is not None:
         return f" ✓ free lead sent {free.get('date') or ''}".rstrip()
@@ -213,14 +231,16 @@ def shortlist(cat, city_raw, records, roster):
         top = cg.top_contractors(matched, limit=8)
         scope = cg.REGION_NAME
 
-    def is_sub(c):
-        e = _roster_match(
+    def sub_entry(c):
+        return _roster_match(
             [x for x in roster["subscribers"]
              if (x.get("status") or "active") == "active"], c)
-        return e is not None and _cell_relevant(e, cat)
 
-    subs = [c for c in top if is_sub(c)]
-    rest = [c for c in top if not is_sub(c)]
+    subs = [c for c in top if sub_entry(c) is not None]
+    # Dead-lead credit holders jump the subscriber queue.
+    subs.sort(key=lambda c: 0 if (sub_entry(c) or {}).get(
+        "priority_next") else 1)
+    rest = [c for c in top if sub_entry(c) is None]
     return scope, (subs + rest)[:5]
 
 
@@ -241,6 +261,61 @@ def format_shortlist(cat, city_raw, records, roster):
             f"  {i}. {c['name']} — {c['count']} {cat['job']} permits, "
             f"typical project {cg.money(c['median'])} — {phone}"
             f"{roster_badge(c, cat, roster)}")
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# Follow-ups (from roster dispatches)
+# ---------------------------------------------------------------------------
+
+def today_et():
+    try:
+        from zoneinfo import ZoneInfo
+        return dt.datetime.now(ZoneInfo("America/New_York")).date()
+    except Exception:
+        return dt.datetime.now(dt.timezone.utc).date()
+
+
+def followups_due(roster, today):
+    """Due, unfinished follow-up checks from the dispatch log.
+    Each: {"key", "kind": "homeowner"|"contractor", "dispatch"}."""
+    out = []
+    t = today.isoformat()
+    for d in roster.get("dispatches", []):
+        for kind, field in (("homeowner", "homeowner_check"),
+                            ("contractor", "contractor_check")):
+            chk = d.get(field) or {}
+            if chk.get("done"):
+                continue
+            due = chk.get("due") or ""
+            if due and due <= t:
+                out.append({"key": f"{d.get('lead_id')}:{kind}",
+                            "kind": kind, "dispatch": d})
+    return out
+
+
+def followup_lines(due_items):
+    lines = ["FOLLOW-UPS DUE", ""]
+    for item in due_items:
+        d = item["dispatch"]
+        who = ", ".join(r.get("contractor") or "?"
+                        for r in d.get("to", [])) or "?"
+        ref = (f"LEAD #{d.get('lead_id')} ({d.get('job_type') or 'job'}"
+               f" — {d.get('city') or '?'}, sent {d.get('sent') or '?'}"
+               f" to {who})")
+        if item["kind"] == "homeowner":
+            lines.append(
+                f"  • {ref} — HOMEOWNER check (~48h): did the "
+                "contractor reach out, and how did it go? Homeowner "
+                "contact is in that lead's alert email. Tell Muse "
+                "the answer to close this.")
+        else:
+            lines.append(
+                f"  • {ref} — CONTRACTOR outcome (~7d): reached the "
+                "homeowner? quoted? won it? A 'dead lead' verdict "
+                "(bad number / not a real project) earns them a "
+                "priority credit on the next lead. Tell Muse the "
+                "outcome to close this.")
     return lines
 
 
@@ -293,7 +368,7 @@ def lead_block(lead, records, roster):
     return lines
 
 
-def build_email(leads, records, roster):
+def build_email(leads, records, roster, followups=None):
     if len(leads) == 1:
         lead = leads[0]
         subject = (f"New PermitPicker quote request: "
@@ -308,6 +383,8 @@ def build_email(leads, records, roster):
         if i:
             lines += ["", "-" * 60, ""]
         lines += lead_block(lead, records, roster)
+    if followups:
+        lines += ["", "-" * 60, ""] + followup_lines(followups)
     lines += [
         "",
         "-" * 60,
@@ -362,28 +439,54 @@ def main():
     ap.add_argument("--roster", default=DEFAULT_ROSTER)
     args = ap.parse_args()
 
-    watermark = load_watermark(args.state)
+    state = load_state(args.state)
+    watermark = state["last_alerted_id"]
     leads = fetch_new_leads(watermark)
     print(f"lead_alerts: {len(leads)} new rows above watermark "
           f"{watermark}", flush=True)
-    if not leads:
-        return  # quiet success: no email, no state change
-
-    try:
-        records = load_permits(args.permits)
-    except Exception as e:  # shortlist is best-effort; the alert is not
-        print(f"lead_alerts: permits dataset unavailable ({e}); "
-              "sending without shortlists", file=sys.stderr, flush=True)
-        records = None
 
     roster = load_roster(args.roster)
-    subject, body = build_email(leads, records, roster)
-    send_email(args.to, subject, body)
+    today = today_et()
+    due = followups_due(roster, today)
+    reminded = state.get("followup_reminded", {})
+    fresh_due = [d for d in due
+                 if reminded.get(d["key"]) != today.isoformat()]
 
-    new_watermark = max(int(lead["id"]) for lead in leads)
-    save_watermark(args.state, new_watermark)
-    print(f"lead_alerts: alert sent for {len(leads)} lead(s); "
-          f"watermark advanced {watermark} -> {new_watermark}", flush=True)
+    if not leads and not fresh_due:
+        return  # quiet success: nothing new, no reminders owed today
+
+    if leads:
+        try:
+            records = load_permits(args.permits)
+        except Exception as e:  # shortlist is best-effort; alert is not
+            print(f"lead_alerts: permits dataset unavailable ({e}); "
+                  "sending without shortlists", file=sys.stderr,
+                  flush=True)
+            records = None
+        subject, body = build_email(leads, records, roster,
+                                    followups=due)
+        send_email(args.to, subject, body)
+        state["last_alerted_id"] = max(int(lead["id"]) for lead in leads)
+        print(f"lead_alerts: alert sent for {len(leads)} lead(s); "
+              f"watermark advanced {watermark} -> "
+              f"{state['last_alerted_id']}", flush=True)
+    else:
+        subject = (f"PermitPicker: {len(fresh_due)} lead follow-up(s) "
+                   "due")
+        body = "\n".join(followup_lines(fresh_due)) + (
+            "\n\nTell Muse the outcomes and the roster closes them "
+            "out.\n")
+        send_email(args.to, subject, body)
+        print(f"lead_alerts: follow-up reminder sent "
+              f"({len(fresh_due)} due)", flush=True)
+
+    # A send succeeded: stamp today's reminders, prune stale keys.
+    live_keys = {d["key"] for d in due}
+    state["followup_reminded"] = {
+        k: v for k, v in reminded.items() if k in live_keys}
+    for d in due:
+        state["followup_reminded"][d["key"]] = today.isoformat()
+    save_state(args.state, state)
 
 
 if __name__ == "__main__":
