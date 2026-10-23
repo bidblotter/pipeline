@@ -637,7 +637,7 @@ CSS = """
 
 HEADER = """<header>
   <h1><a href="/">Permit<span>Picker</span></a></h1>
-  <p>Raleigh permit intelligence — live data, refreshed daily · <a href="/costs/">Homeowner cost guides</a></p>
+  <p>Raleigh permit intelligence — live data, refreshed daily · <a href="/costs/">Homeowner cost guides</a> · <a href="/permitpulse/">PermitPulse for pros</a></p>
 </header>"""
 
 FOOTER = """<footer>PermitPicker — recent Wake County, Cary &amp; Raleigh filings. Public records, refreshed daily.<br>
@@ -1058,6 +1058,7 @@ def render_index(cells, gen_date):
 # tag" coverage warnings (flagged 2026-10-12, fixed 2026-10-22).
 STATIC_SITEMAP_URLS = [
     ("https://permitpicker.com/", "daily", "1.0"),
+    ("https://permitpicker.com/permitpulse/", "weekly", "0.7"),
 ]
 
 
