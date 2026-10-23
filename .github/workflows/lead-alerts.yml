@@ -39,7 +39,16 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: python pipeline/lead_alerts.py
+        run: |
+          # Shortlists need phones: read the private Storage copy
+          # (public permits.json no longer carries them). Fall back
+          # to the public file if Storage is unreachable.
+          curl -sf -o /tmp/permits_full.json \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            "$SUPABASE_URL/storage/v1/object/internal/permits_full.json" \
+            || curl -sf -o /tmp/permits_full.json https://permitpicker.com/data/permits.json
+          python pipeline/lead_alerts.py --permits /tmp/permits_full.json
       - name: Commit alert state
         if: always()
         run: |
