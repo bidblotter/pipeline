@@ -189,6 +189,18 @@
     details summary { color: #6aa8e0; }
   }
 </style>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-VW5K8L3BYS"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-VW5K8L3BYS');
+document.addEventListener('click', function(e){
+  var a = e.target && e.target.closest ? e.target.closest('a[href^="tel:"]') : null;
+  if (a) { gtag('event', 'call_click', {phone: a.getAttribute('href').replace('tel:', ''), page_path: location.pathname}); }
+});
+</script>
 </head>
 <body>
 <header>
@@ -695,6 +707,7 @@ document.getElementById("su-form").addEventListener("submit", async e => {
     });
     if (res.ok) {
       msg.className = "ok";
+      if (window.gtag) gtag('event', 'permitpulse_signup', {trade: trade, page_path: location.pathname});
       msg.textContent = "You're in! We'll send your free-trial invite shortly.";
       document.getElementById("su-email").value = "";
     } else {
