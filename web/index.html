@@ -22,6 +22,22 @@
   header h1 span { color: #ffb020; }
   header p { opacity: .75; font-size: 13px; margin-top: 4px; }
   .badge { display: inline-block; background: #ffb020; color: #14324a; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+  .home-hero { background: #eaf2f7; border-bottom: 1px solid #d7e3ee; }
+  .hero-inner { max-width: 880px; margin: 0 auto; padding: 28px 16px 24px; }
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #1463a0; margin-bottom: 8px; }
+  .home-hero h2 { font-size: 30px; line-height: 1.15; margin-bottom: 10px; }
+  .home-hero .hero-copy { font-size: 16px; line-height: 1.55; color: #445; max-width: 720px; }
+  .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0; }
+  .hero-btn { display: inline-block; background: #0d7a6f; color: #fff; padding: 11px 16px; border-radius: 6px; text-decoration: none; font-weight: 800; font-size: 14px; }
+  .hero-btn.secondary { background: #fff; color: #14324a; border: 1px solid #b9c9d8; }
+  .project-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; }
+  .project-tile { background: #fff; border: 1px solid #d7e3ee; border-radius: 8px; padding: 13px; text-decoration: none; color: #1c2733; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  .project-tile b { display: block; font-size: 15px; margin-bottom: 3px; }
+  .project-tile span { font-size: 12.5px; color: #667; }
+  .project-tile:hover { border-color: #1463a0; }
+  .explorer-head { max-width: 880px; margin: 0 auto; padding: 22px 16px 0; }
+  .explorer-head h2 { font-size: 21px; margin-bottom: 5px; }
+  .explorer-head p { color: #667; font-size: 14px; line-height: 1.5; }
   .stats { display: flex; gap: 12px; padding: 14px 16px; flex-wrap: wrap; }
   .stat { background: #fff; border-radius: 8px; padding: 10px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); flex: 1; min-width: 120px; }
   .stat b { font-size: 20px; display: block; }
@@ -99,6 +115,12 @@
     body { background: #0e1319; color: #dbe4ee; }
     header, .signup { background: #0d2233; }
     .signup { background: #0b1f24; }
+    .home-hero { background: #102536; border-bottom-color: #243447; }
+    .eyebrow { color: #6aa8e0; }
+    .home-hero .hero-copy, .explorer-head p { color: #a7b4c6; }
+    .hero-btn.secondary { background: #17202b; color: #dbe4ee; border-color: #2c3a4d; }
+    .project-tile { background: #17202b; border-color: #2c3a4d; color: #dbe4ee; }
+    .project-tile span { color: #93a1b5; }
     .stat, .filters, .card { background: #17202b; box-shadow: 0 1px 3px rgba(0,0,0,.45); }
     .stat small, .flabel, .empty, footer { color: #93a1b5; }
     .signup input, .signup select, .filters input[type=text] { background: #0e1319; border-color: #2c3a4d; color: #dbe4ee; }
@@ -139,6 +161,30 @@
   <h1>Permit<span>Picker</span></h1>
   <p>Raleigh permit intelligence — live data, refreshed daily · <a href="/costs/" style="color:#ffb020">Homeowner cost guides</a></p>
 </header>
+<section class="home-hero">
+  <div class="hero-inner">
+    <p class="eyebrow">For homeowners</p>
+    <h2>See what a project really costs — and who is actually doing the work.</h2>
+    <p class="hero-copy">PermitPicker turns real Wake County, Raleigh &amp; Cary permit records into local project cost guides and contractor rankings based on permitted activity. No national averages, paid placements, or guesses.</p>
+    <div class="hero-actions">
+      <a class="hero-btn" href="/costs/">Browse project costs</a>
+      <a class="hero-btn secondary" href="/contractors/">See contractor rankings</a>
+      <a class="hero-btn secondary" href="/costs/">Request local quotes</a>
+    </div>
+    <div class="project-grid" aria-label="Home project cost guides">
+      <a class="project-tile" href="/costs/deck/"><b>Deck</b><span>Local costs &amp; active builders</span></a>
+      <a class="project-tile" href="/costs/addition/"><b>Home addition</b><span>Local costs &amp; active contractors</span></a>
+      <a class="project-tile" href="/costs/pool/"><b>Pool</b><span>Local costs &amp; active builders</span></a>
+      <a class="project-tile" href="/costs/accessory-building/"><b>Accessory building</b><span>Garages, sheds &amp; workshops</span></a>
+      <a class="project-tile" href="/costs/kitchen-remodel/"><b>Kitchen remodel</b><span>Local costs &amp; active remodelers</span></a>
+      <a class="project-tile" href="/costs/bathroom-remodel/"><b>Bathroom remodel</b><span>Local costs &amp; active remodelers</span></a>
+    </div>
+  </div>
+</section>
+<div class="explorer-head">
+  <h2>Explore local permit activity</h2>
+  <p>For contractors, suppliers, researchers, and the curious: browse and filter the underlying public permit filings that power the homeowner guides above.</p>
+</div>
 <div class="stats">
   <div class="stat"><b id="s-total">–</b><small>permits tracked</small></div>
   <div class="stat"><b id="s-week">–</b><small>new in last 7 days</small></div>
