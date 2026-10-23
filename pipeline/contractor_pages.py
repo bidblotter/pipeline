@@ -41,6 +41,8 @@ RANKING_LABELS = {
     "accessory-building": "Accessory building contractors",
     "kitchen-remodel": "Kitchen remodelers",
     "bathroom-remodel": "Bathroom remodelers",
+    "screened-porch": "Screened porch builders",
+    "solar": "Solar installers",
 }
 
 # The ranking/profile layer is a homeowner-facing directory.  In addition
@@ -294,7 +296,7 @@ def render_hub(cells, rankings, profiles, gen_date):
   <div class="card">
     <h2>Contractor activity profiles</h2>
     <p>{len(profiles)} contractors have an aggregate public-activity profile.
-    Profiles summarize permitted work across the six homeowner categories;
+    Profiles summarize permitted work across the {len(cg.CATEGORIES)} homeowner categories;
     they are not endorsements.</p>
     <div class="cta-row"><a class="btn" href="/costs/">Browse project costs</a>
     <a class="btn secondary" href="/">Explore permit activity</a></div>
@@ -545,7 +547,7 @@ def render_profile(profile, cells, gen_date):
   rating or endorsement.</p>
   <div class="profile-actions">{call_html}</div>
   <div class="stats">
-    <div class="stat"><b>{profile['total']}</b><small>permits across the six homeowner categories</small></div>
+    <div class="stat"><b>{profile['total']}</b><small>permits across the {len(cg.CATEGORIES)} homeowner categories</small></div>
     <div class="stat"><b>{len(profile['categories'])}</b><small>homeowner categories with activity</small></div>
     <div class="stat"><b>{esc(span)}</b><small>category activity span</small></div>
   </div>
