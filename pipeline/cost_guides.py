@@ -548,6 +548,8 @@ CSS = """
   #q-msg { font-size: 13px; min-height: 18px; margin-top: 4px; }
   #q-msg.ok { color: #7ce3a5; }
   #q-msg.err { color: #ff9d9d; }
+  .faq h3 { font-size: 15px; margin: 14px 0 4px; }
+  .faq h3:first-of-type { margin-top: 2px; }
   .links { display: grid; gap: 6px; font-size: 14px; }
   .links a { color: #1463a0; }
   .catgrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
@@ -588,6 +590,71 @@ Cost figures are permit-declared values from public records — see the methodol
 
 def esc(s):
     return html.escape(str(s if s is not None else ""), quote=True)
+
+
+def ld_script(obj):
+    """Serialize a schema.org object as a JSON-LD script tag."""
+    payload = json.dumps(obj, indent=2, ensure_ascii=False)
+    payload = payload.replace("</", "<\\/")
+    return f'<script type="application/ld+json">\n{payload}\n</script>'
+
+
+def breadcrumb_ld(items):
+    """items: [(name, url), ...] -> BreadcrumbList schema object."""
+    return {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": i + 1, "name": name,
+             "item": url}
+            for i, (name, url) in enumerate(items)],
+    }
+
+
+def faq_for(cat, place, n, med, p25, p75, span):
+    """Data-backed FAQs for a cost guide. Every number in an answer comes
+    from this page's own slice — nothing is invented, and no permit-law
+    thresholds are asserted (rules vary by jurisdiction and job)."""
+    job = cat["job"]
+    return [
+        (f"How much does a {job} cost in {place}?",
+         f"The typical (median) declared value for a permitted {job} in "
+         f"{place} is {money(med)}, based on {n} permitted jobs filed "
+         f"{span}. Most jobs — the middle 50% — fall between "
+         f"{money(p25)} and {money(p75)}."),
+        ("Where do these cost figures come from?",
+         "They are computed from public permit records filed in Wake "
+         "County, Raleigh & Cary. Each figure is the value the applicant "
+         "declared on the permit application for that job, aggregated "
+         "across every matching permitted job counted on this page. "
+         "Figures refresh daily."),
+        ("Are declared permit values the same as final project costs?",
+         "No. A declared value is a pre-job estimate stated when the "
+         "permit is applied for, and permit fees scale with that number, "
+         "so declared values tend to run below the final invoice. Use "
+         "them as a local market anchor for budgeting, not as a quote."),
+        (f"Why might a quote for my {job} be higher or lower than the "
+         f"typical figure?",
+         "Size, materials, site conditions, finish level, and any "
+         "structural, electrical, or plumbing work involved all move the "
+         "price. Combined projects also count here, so a job built as "
+         "part of a larger remodel may carry a higher declared value "
+         "than a standalone job."),
+        ("How do I get quotes from contractors doing this work locally?",
+         f"Use the quote-request form on this page, or contact a "
+         f"contractor from the {place} activity ranking linked below. "
+         f"Rankings are based only on recent permitted activity in "
+         f"public records — not reviews, quality scores, or paid "
+         f"placement."),
+    ]
+
+
+def render_faq(faqs):
+    rows = "\n".join(
+        f"      <h3>{esc(q)}</h3>\n      <p>{esc(a)}</p>" for q, a in faqs)
+    return f"""  <div class="card faq">
+    <h2>Frequently asked questions</h2>
+{rows}
+  </div>"""
 
 
 def render_form(cat, place, city_value, p25, med, p75):
@@ -746,6 +813,34 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     links_html = "\n".join(link_lines)
     city_value = "" if place == REGION_NAME else place
     form_html = render_form(cat, place, city_value, p25, med, p75)
+    faqs = faq_for(cat, place, n, med, p25, p75, span)
+    faq_html = render_faq(faqs)
+    ld_graph = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {"@type": "WebPage", "name": title, "description": desc,
+             "url": url,
+             "isPartOf": {"@type": "WebSite", "name": "PermitPicker",
+                          "url": f"{SITE}/"}},
+            breadcrumb_ld([
+                ("PermitPicker", f"{SITE}/"),
+                ("Cost guides", f"{SITE}/costs/"),
+                (f"{cat['label']} — {place}", url)]),
+            {"@type": "Dataset",
+             "name": f"{cat['label']} costs in {place} — declared permit values",
+             "description": desc, "url": url,
+             "creator": {"@type": "Organization", "name": "PermitPicker",
+                         "url": f"{SITE}/"},
+             "spatialCoverage": place,
+             "temporalCoverage": f"{lo}/{hi}"},
+            {"@type": "FAQPage",
+             "mainEntity": [
+                 {"@type": "Question", "name": q,
+                  "acceptedAnswer": {"@type": "Answer", "text": a}}
+                 for q, a in faqs]},
+        ],
+    }
+    ld_html = ld_script(ld_graph)
     return slug, f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -761,6 +856,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
 <meta property="og:url" content="{url}">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{ld_html}
 <style>{CSS}</style>
 </head>
 <body>
@@ -796,6 +892,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
   </div>
 {co_html}
 {form_html}
+{faq_html}
   <div class="card">
     <h2>More cost guides</h2>
     <div class="links">
@@ -827,6 +924,33 @@ def render_index(cells, gen_date):
       {f'<div class="cities">By city: {city_links}</div>' if city_links else ''}
     </div>""")
     cards_html = "\n".join(cards)
+    item_list = []
+    pos = 0
+    for cell in cells:
+        pos += 1
+        item_list.append({
+            "@type": "ListItem", "position": pos,
+            "name": f"{cell['cat']['label']} cost in the {REGION_NAME}",
+            "url": f"{SITE}/costs/{cell['cat']['id']}/"})
+        for place, slug, _st in cell["cities"]:
+            pos += 1
+            item_list.append({
+                "@type": "ListItem", "position": pos,
+                "name": f"{cell['cat']['label']} cost in {place}",
+                "url": f"{SITE}/costs/{slug}/"})
+    ld_html = ld_script({
+        "@context": "https://schema.org",
+        "@graph": [
+            {"@type": "CollectionPage",
+             "name": "Homeowner cost guides — PermitPicker",
+             "url": f"{SITE}/costs/",
+             "isPartOf": {"@type": "WebSite", "name": "PermitPicker",
+                          "url": f"{SITE}/"}},
+            breadcrumb_ld([("PermitPicker", f"{SITE}/"),
+                           ("Cost guides", f"{SITE}/costs/")]),
+            {"@type": "ItemList", "itemListElement": item_list},
+        ],
+    })
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -842,6 +966,7 @@ def render_index(cells, gen_date):
 <meta property="og:url" content="{SITE}/costs/">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
+{ld_html}
 <style>{CSS}</style>
 </head>
 <body>
@@ -865,15 +990,12 @@ def render_index(cells, gen_date):
 """
 
 
+# Only canonical URLs belong in the sitemap. The permit explorer's
+# ?type= filter URLs all canonical back to the homepage, and listing
+# them caused Search Console "Alternate page with proper canonical
+# tag" coverage warnings (flagged 2026-10-12, fixed 2026-10-22).
 STATIC_SITEMAP_URLS = [
     ("https://permitpicker.com/", "daily", "1.0"),
-    ("https://permitpicker.com/?type=electrical", "daily", "0.8"),
-    ("https://permitpicker.com/?type=plumbing", "daily", "0.8"),
-    ("https://permitpicker.com/?type=mechanical", "daily", "0.8"),
-    ("https://permitpicker.com/?type=building", "daily", "0.8"),
-    ("https://permitpicker.com/?type=demolition", "daily", "0.8"),
-    ("https://permitpicker.com/?type=fire", "daily", "0.8"),
-    ("https://permitpicker.com/?type=sitework", "daily", "0.8"),
 ]
 
 
