@@ -18,6 +18,9 @@ CORP_SUFFIX = r'\b(llc|inc|co|corp|ltd|pllc|pa|lp|llp)\b\.?'
 NON_CONTRACTOR = {
     'tenant', 'owner', 'owner (general)', 'homeowner', 'n/a', 'none',
     'tbd', 'unknown', 'same', 'self',
+    # Placeholder contractor strings observed in the source feeds
+    # (2026-10-22: 'TBD - General Contractor' ranked on live cost pages).
+    'tbd - general contractor', 'tbd general contractor',
 }
 
 # Hand-verified cross-key merges (key -> canonical key). Add cautiously:
@@ -68,7 +71,15 @@ def clean_name(name):
 
 def is_contractor(name):
     n = (name or '').strip().lower().rstrip('.')
-    return bool(n) and n not in NON_CONTRACTOR
+    if not n or n in NON_CONTRACTOR:
+        return False
+    # Placeholder variants that exact-match misses: 'TBD CONTRACTOR – DO NOT
+    # CHANGE THIS NAME!!' etc. (2026-10-22: 65 TBD-variant records across 4
+    # spellings in the permit data). Any leading TBD token is a placeholder.
+    toks = [t for t in n.split() if any(ch.isalnum() for ch in t)]
+    first = (re.sub(r'^[^a-z0-9]+|[^a-z0-9]+$', '', toks[0])
+             if toks else '')
+    return first != 'tbd'
 
 
 def display_for(key, names):
