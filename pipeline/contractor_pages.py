@@ -325,8 +325,9 @@ def render_ranking(cell, ranking, profile_slugs, all_cells, gen_date):
         name_html = (f'<a href="/contractors/{profile}/"><b>{esc(c["name"])}</b></a>'
                      if profile else f'<b>{esc(c["name"])}</b>')
         activity = cg.fmt_span(c["first"], c["latest"]) or "—"
-        call = (f'<a class="call" href="{cg.tel_href(c["phone"])}">Call</a>'
-                if c["phone"] else "—")
+        call = (f'<a class="call" href="/contractors/{profile}/">Details</a>'
+                if profile else
+                '<a class="call" href="/permitpulse/">Get contact details</a>')
         rows.append(f"""        <tr><td class="rank">{i}</td><td>{name_html}</td>
           <td>{c['count']}</td><td>{esc(activity)}</td>
           <td>{cg.money(c['median'])}</td><td>{call}</td></tr>""")
@@ -500,7 +501,8 @@ def render_profile(profile, cells, gen_date):
     that this specific contractor will receive or respond to a request.</p>
     <div class="cta-row"><a class="btn" href="/costs/{strongest['slug']}/">See costs &amp; request quotes</a></div>
   </section>"""
-    call_html = (f'<a class="call" href="{cg.tel_href(profile["phone"])}">Call {esc(profile["phone"])}</a>'
+    call_html = ("<a class=\"call\" href=\"/permitpulse/\">Get this "
+                 "firm's contact details — PermitPulse</a>"
                  if profile["phone"] else "")
     org = {"@type": "Organization", "name": name,
            "url": f"{SITE}/contractors/{profile['slug']}/",
@@ -508,8 +510,6 @@ def render_profile(profile, cells, gen_date):
                            f"{name} across PermitPicker homeowner "
                            f"categories. Activity is not a quality rating "
                            f"or endorsement.")}
-    if profile["phone"]:
-        org["telephone"] = profile["phone"]
     ld_html = cg.ld_script({
         "@context": "https://schema.org",
         "@graph": [
