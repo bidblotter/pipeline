@@ -7,6 +7,13 @@ polls for rows with id greater than a watermark, emails a work-order
 digest to Andrew (lead details + a shortlist of top-matching local
 contractors for each lead), and only then advances the watermark.
 
+Routing: since 2026-10-23 the job also ROUTES each lead — fit-scored
+delivery to subscribers first, then freebie-eligible contractors (max
+2 recipients), emailed automatically where the roster carries an
+address; phone-only recipients are flagged in Andrew's report for a
+manual text. Dispatches and freebie marks are written back to the
+roster by this job (the workflow commits it with the watermark).
+
 Roster: state/lead_roster.json lists who already got a free lead
 ("freebies"), who subscribes ("subscribers" — one all-access
 subscription, trades/cities on an entry are delivery preferences,
@@ -166,9 +173,29 @@ def load_roster(path):
             data = json.load(f)
         return {"freebies": data.get("freebies", []),
                 "subscribers": data.get("subscribers", []),
-                "dispatches": data.get("dispatches", [])}
+                "dispatches": data.get("dispatches", []),
+                "stripe_lead_link": data.get("stripe_lead_link", "")}
     except (OSError, ValueError):
-        return {"freebies": [], "subscribers": [], "dispatches": []}
+        return {"freebies": [], "subscribers": [], "dispatches": [],
+                "stripe_lead_link": ""}
+
+
+def save_roster(path, roster):
+    """Written back by the router (auto deliveries, freebie marks,
+    dispatch log). The lead-alerts workflow commits it alongside the
+    watermark state."""
+    data = {"freebies": roster.get("freebies", []),
+            "subscribers": roster.get("subscribers", []),
+            "dispatches": roster.get("dispatches", [])}
+    if roster.get("stripe_lead_link"):
+        data["stripe_lead_link"] = roster["stripe_lead_link"]
+    with open(path, "r") as f:
+        existing = json.load(f)
+    for k, v in existing.items():
+        data.setdefault(k, v)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=1)
+        f.write("\n")
 
 
 def _norm_name(name):
@@ -427,6 +454,214 @@ def format_shortlist(cat, city_raw, records, roster, lead=None):
     return lines
 
 
+
+# ---------------------------------------------------------------------------
+# Router (2026-10-23): automatic routing + delivery + logging.
+# Per lead: fit-score the pool, deliver to subscribers first, then
+# freebie-eligible contractors, up to MAX_RECIPIENTS total. Email
+# delivery is automatic where the roster carries an address;
+# phone-only recipients are flagged in Andrew's report for a manual
+# text (their dispatch stays "awaiting_manual" and the freebie is
+# reserved, not burned, until Andrew confirms). Contractors who
+# match but already used their freebie become pitch targets in the
+# report — the system never pitches; Andrew does.
+# ---------------------------------------------------------------------------
+
+MAX_RECIPIENTS = 2
+
+
+def _active_sub(roster, contractor):
+    return _roster_match(
+        [e for e in roster["subscribers"]
+         if (e.get("status") or "active") == "active"], contractor)
+
+
+def _freebie_used(roster, contractor):
+    if _roster_match(roster["freebies"], contractor) is not None:
+        return True
+    # Reserved by an earlier dispatch that is still awaiting manual
+    # delivery — don't hand the same contractor a second freebie.
+    for d in roster.get("dispatches", []):
+        if d.get("status") == "awaiting_manual":
+            for r in d.get("to", []):
+                if r.get("kind") == "freebie" and _roster_match(
+                        [{"contractor": r.get("contractor"),
+                          "phone": r.get("phone")}], contractor):
+                    return True
+    return False
+
+
+def _supabase_email(contractor):
+    """Contractor email from the production permits table (the
+    export carries no emails; prospects.py reads them the same way).
+    Matched on the exact phone string, which the export copies from
+    the table verbatim. Best-effort: '' on any failure."""
+    phone = (contractor.get("phone") or "").strip()
+    if not phone or not os.environ.get("SUPABASE_URL") \
+            or not os.environ.get("SUPABASE_SERVICE_KEY"):
+        return ""
+    try:
+        q = urllib.parse.urlencode({
+            "select": "contractor_email",
+            "contractor_phone": f"eq.{phone}",
+            "contractor_email": "not.is.null",
+            "limit": "1",
+        })
+        rows = sb_get("permits", params="?" + q)
+        return (rows[0].get("contractor_email") or "").strip() \
+            if rows else ""
+    except Exception:
+        return ""
+
+
+def _entry_email(roster, contractor):
+    for entries in (roster["subscribers"], roster["freebies"]):
+        e = _roster_match(entries, contractor)
+        if e is not None and e.get("email"):
+            return e["email"]
+    return ""
+
+
+def route_lead(lead, records, roster):
+    """Decide who gets this lead. Returns a routing dict or None
+    when the lead can't be routed (unknown job type / no data)."""
+    cat = find_category(lead.get("job_type"))
+    if cat is None or records is None:
+        return None
+    scope, note, scored = fit_shortlist(cat, lead.get("city"),
+                                        records, lead)
+    subs, freebies, pitch = [], [], []
+    for c, pts, why in scored:
+        if _active_sub(roster, c) is not None:
+            subs.append((c, pts, why))
+        elif _freebie_used(roster, c):
+            pitch.append((c, pts, why))
+        else:
+            freebies.append((c, pts, why))
+    subs.sort(key=lambda x: 0 if (_active_sub(roster, x[0]) or {}).get(
+        "priority_next") else 1)
+    picked = []
+    for c, pts, why in (subs + freebies)[:MAX_RECIPIENTS]:
+        kind = "subscriber" if _active_sub(roster, c) is not None \
+            else "freebie"
+        email = _entry_email(roster, c) or _supabase_email(c)
+        picked.append({"contractor": c, "kind": kind, "fit": pts,
+                       "why": why,
+                       "channel": "email" if email else "manual",
+                       "email": email})
+    return {"cat": cat, "scope": scope, "note": note,
+            "recipients": picked,
+            "pitch_targets": pitch[:3],
+            "pool_size": len(scored)}
+
+
+def delivery_email(lead, recipient):
+    c = recipient["contractor"]
+    job = lead.get("job_type") or "project"
+    city = lead.get("city") or "the Raleigh area"
+    details = [
+        f"Name: {lead.get('name') or '—'}",
+        f"Phone: {lead.get('phone') or '—'}",
+        f"Email: {lead.get('email') or '—'}",
+        f"City: {city}",
+        f"Job: {job}",
+        f"Timeline: {lead.get('timeline') or '—'}",
+        f"Budget: {lead.get('budget') or '—'}",
+        f"Details: {lead.get('details') or '—'}",
+    ]
+    if recipient["kind"] == "subscriber":
+        subject = f"PermitPicker lead: {job} in {city}"
+        body = ("New homeowner request, delivered per your "
+                "PermitPicker lead subscription:\n\n"
+                + "\n".join(details)
+                + "\n\nShared with at most one other contractor. "
+                  "Speed matters — these go stale fast.\n\n"
+                  "— Andrew, PermitPicker\n")
+    else:
+        subject = f"A {job} request in {city} — yours, free (PermitPicker)"
+        body = ("Hi — Andrew with PermitPicker. We publish what home "
+                "projects actually cost around Raleigh and Cary, "
+                "from real permit records, and homeowners request "
+                "quotes through the site.\n\n"
+                "This one just came in:\n\n"
+                + "\n".join(details)
+                + "\n\nYours, free — a sample of what our "
+                  "subscribers get the hour requests land. The "
+                  "homeowner consented to be contacted by up to 2 "
+                  "local contractors. If you'd like these regularly, "
+                  "just reply and I'll set you up.\n\n"
+                  "— Andrew, PermitPicker\n")
+    return subject, body
+
+
+def apply_routing(roster, lead, routing, today):
+    """Log the dispatch (+ freebie marks for emailed freebies) into
+    the roster. Returns True when the roster changed."""
+    if any(int(d.get("lead_id") or 0) == int(lead["id"])
+           for d in roster.get("dispatches", [])):
+        return False  # idempotent: already logged
+    sent = today.isoformat()
+    tos = []
+    all_email = True
+    for r in routing["recipients"]:
+        c = r["contractor"]
+        tos.append({"contractor": c["name"], "phone": c["phone"],
+                    "kind": r["kind"], "channel": r["channel"]})
+        if r["channel"] != "email":
+            all_email = False
+        if r["kind"] == "freebie" and r["channel"] == "email":
+            roster["freebies"].append({
+                "contractor": c["name"], "phone": c["phone"],
+                "category": routing["cat"]["id"],
+                "city": lead.get("city") or "",
+                "date": sent, "lead_id": int(lead["id"])})
+    delivered = bool(tos) and all_email
+    roster["dispatches"].append({
+        "lead_id": int(lead["id"]),
+        "job_type": lead.get("job_type") or "",
+        "city": lead.get("city") or "",
+        "sent": sent,
+        "status": "delivered" if delivered else "awaiting_manual",
+        "to": tos,
+        "homeowner_check": {
+            "due": (today + dt.timedelta(days=2)).isoformat()
+            if delivered else None, "done": None},
+        "contractor_check": {
+            "due": (today + dt.timedelta(days=7)).isoformat()
+            if delivered else None, "done": None},
+    })
+    return True
+
+
+def routing_lines(lead, routing, roster):
+    if routing is None:
+        return ["ROUTING SKIPPED — dataset unavailable this run; "
+                "route this one by hand from the details above."]
+    lines = [f"Routing — {routing['scope']}{routing['note']}:"]
+    if not routing["recipients"]:
+        lines.append("  (no deliverable match — nobody passed the "
+                     "gates; widen by hand or treat as a recruiting "
+                     "signal)")
+    for r in routing["recipients"]:
+        c = r["contractor"]
+        badge = roster_badge(c, routing["cat"], roster)
+        if r["kind"] == "freebie" and not badge:
+            badge = " (freebie)"
+        via = (f"emailed to {r['email']}" if r["channel"] == "email"
+               else "ACTION FOR YOU: text them the lead, then tell "
+                    "Muse 'sent' to start the follow-up clocks")
+        lines.append(f"  → {c['name']} — {c['phone']}{badge} "
+                     f"[fit {r['fit']}] — {via}")
+    link = roster.get("stripe_lead_link") or "(Stripe link not set yet)"
+    for c, pts, why in routing["pitch_targets"]:
+        lines.append(
+            f"  ✉ PITCH TARGET: {c['name']} matched but already used "
+            f"their freebie. Teaser: '{lead.get('job_type')} in "
+            f"{lead.get('city')}, budget {lead.get('budget') or '—'}, "
+            f"just came in — subscribers got it.' + {link}")
+    return lines
+
+
 # ---------------------------------------------------------------------------
 # Follow-ups (from roster dispatches)
 # ---------------------------------------------------------------------------
@@ -501,7 +736,7 @@ def fmt_ts(iso):
         return t.astimezone(dt.timezone.utc).strftime("%b %d, %Y %H:%M UTC")
 
 
-def lead_block(lead, records, roster):
+def lead_block(lead, records, roster, routing=None):
     job = lead.get("job_type") or "—"
     city = lead.get("city") or "—"
     lines = [
@@ -518,6 +753,9 @@ def lead_block(lead, records, roster):
         f"Details: {lead.get('details') or '—'}",
         "",
     ]
+    if routing is not None:
+        lines += routing_lines(lead, routing, roster)
+        return lines
     cat = find_category(lead.get("job_type"))
     if cat is None:
         lines.append("Top matching contractors: "
@@ -531,7 +769,8 @@ def lead_block(lead, records, roster):
     return lines
 
 
-def build_email(leads, records, roster, followups=None):
+def build_email(leads, records, roster, followups=None,
+                routings=None):
     if len(leads) == 1:
         lead = leads[0]
         subject = (f"New PermitPicker quote request: "
@@ -545,7 +784,8 @@ def build_email(leads, records, roster, followups=None):
     for i, lead in enumerate(leads):
         if i:
             lines += ["", "-" * 60, ""]
-        lines += lead_block(lead, records, roster)
+        lines += lead_block(lead, records, roster,
+                            (routings or {}).get(int(lead["id"])))
     if followups:
         lines += ["", "-" * 60, ""] + followup_lines(followups)
     lines += [
@@ -618,21 +858,67 @@ def main():
     if not leads and not fresh_due:
         return  # quiet success: nothing new, no reminders owed today
 
+    processed, routings = [], {}
+    roster_dirty = False
+    routing_failed = False
     if leads:
         try:
             records = load_permits(args.permits)
-        except Exception as e:  # shortlist is best-effort; alert is not
+        except Exception as e:  # dataset is required for routing now
             print(f"lead_alerts: permits dataset unavailable ({e}); "
-                  "sending without shortlists", file=sys.stderr,
+                  "alerting without routing", file=sys.stderr,
                   flush=True)
             records = None
-        subject, body = build_email(leads, records, roster,
-                                    followups=due)
-        send_email(args.to, subject, body)
-        state["last_alerted_id"] = max(int(lead["id"]) for lead in leads)
-        print(f"lead_alerts: alert sent for {len(leads)} lead(s); "
-              f"watermark advanced {watermark} -> "
-              f"{state['last_alerted_id']}", flush=True)
+        already = {int(d.get("lead_id") or 0)
+                   for d in roster.get("dispatches", [])}
+        for lead in leads:
+            if int(lead["id"]) in already:
+                processed.append(lead)  # routed in an earlier run
+                continue
+            routing = (route_lead(lead, records, roster)
+                       if records is not None else None)
+            if routing is None:
+                # Alert-only for this lead (no dataset / unknown job
+                # type): the report carries full details to route by
+                # hand. Counted as processed — Andrew is the router.
+                processed.append(lead)
+                continue
+            failed = False
+            for r in routing["recipients"]:
+                if r["channel"] != "email":
+                    continue
+                subject, body = delivery_email(lead, r)
+                try:
+                    send_email(r["email"], subject, body)
+                except SystemExit:
+                    failed = True
+                    break
+            if failed:
+                routing_failed = True
+                print(f"lead_alerts: delivery failed for lead "
+                      f"{lead['id']}; holding watermark below it",
+                      file=sys.stderr, flush=True)
+                break  # retry this lead (and the rest) next run
+            if apply_routing(roster, lead, routing, today):
+                roster_dirty = True
+            routings[int(lead["id"])] = routing
+            processed.append(lead)
+
+        if processed:
+            subject, body = build_email(processed, records, roster,
+                                        followups=due,
+                                        routings=routings)
+            if routing_failed:
+                body = ("NOTE: a delivery failed mid-batch; the "
+                        "remaining new leads will retry next run.\n\n"
+                        + body)
+            send_email(args.to, subject, body)
+            state["last_alerted_id"] = max(
+                int(lead["id"]) for lead in processed)
+            print(f"lead_alerts: report sent for "
+                  f"{len(processed)} lead(s); watermark advanced "
+                  f"{watermark} -> {state['last_alerted_id']}",
+                  flush=True)
     else:
         subject = (f"PermitPicker: {len(fresh_due)} lead follow-up(s) "
                    "due")
@@ -642,6 +928,11 @@ def main():
         send_email(args.to, subject, body)
         print(f"lead_alerts: follow-up reminder sent "
               f"({len(fresh_due)} due)", flush=True)
+
+    if roster_dirty:
+        save_roster(args.roster, roster)
+        print("lead_alerts: roster updated (dispatches/freebies)",
+              flush=True)
 
     # A send succeeded: stamp today's reminders, prune stale keys.
     live_keys = {d["key"] for d in due}
