@@ -52,11 +52,12 @@ jobs:
       - name: Commit alert state
         if: always()
         run: |
-          if [ -f state/lead_alerts.json ] && ! git diff --quiet -- state/lead_alerts.json; then
+          if [ -f state/lead_alerts.json ] && ! git diff --quiet -- state/lead_alerts.json state/lead_roster.json; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add state/lead_alerts.json
-            git commit -m "lead-alerts: advance watermark"
+            git add state/lead_alerts.json state/lead_roster.json
+            git commit -m "lead-alerts: watermark + roster (auto-routing)"
+            git pull --rebase origin main || true
             git push
           else
             echo "state unchanged — nothing to commit"
