@@ -89,6 +89,9 @@ jobs:
         run: |
           if [ -n "$SUPABASE_ANON_KEY" ]; then
             sed -i "s/PASTE_ANON_KEY_HERE/$SUPABASE_ANON_KEY/g" web/index.html
+            if [ -f web/permitpulse/index.html ]; then
+              sed -i "s/PASTE_ANON_KEY_HERE/$SUPABASE_ANON_KEY/g" web/permitpulse/index.html
+            fi
             if [ -d web/costs ]; then
               find web/costs -name '*.html' -exec sed -i "s/PASTE_ANON_KEY_HERE/$SUPABASE_ANON_KEY/g" {} +
             fi
