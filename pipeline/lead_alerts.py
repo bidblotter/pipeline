@@ -557,10 +557,61 @@ def route_lead(lead, records, roster):
             "pool_size": len(scored)}
 
 
+def _first_name(lead):
+    name = (lead.get("name") or "").strip()
+    return name.split()[0] if name else "the homeowner"
+
+
+def _display_co(name):
+    """Contractor names in the data are often ALL CAPS; soften for
+    use inside a greeting."""
+    n = (name or "").strip()
+    return n.title() if n.isupper() else n
+
+
+def _contact_links(lead, contractor):
+    """Prefilled ways for the contractor to reach the HOMEOWNER:
+    a mailto (CC'ing leads@ so Andrew sees the outreach) and an sms
+    link. Replying to the delivery email itself reaches Andrew —
+    the email copy keeps the two paths clearly separate."""
+    import urllib.parse as _up
+    co = _display_co(contractor.get("name"))
+    first = _first_name(lead)
+    job = lead.get("job_type") or "project"
+    city = lead.get("city") or "the Raleigh area"
+    mailto = None
+    if (lead.get("email") or "").strip():
+        subj = f"Re: your {job} request in {city} (via PermitPicker)"
+        msg = (f"Hi {first},\n\nThis is {co} — PermitPicker passed "
+               f"me your {job} request in {city}, and I'd be glad to "
+               f"give you a quote.\n\nWhen's a good time to "
+               f"talk?\n\n— {co} (via PermitPicker)")
+        mailto = (f"mailto:{lead['email'].strip()}"
+                  f"?cc={_up.quote(REPLY_TO, safe='@')}"
+                  f"&subject={_up.quote(subj)}"
+                  f"&body={_up.quote(msg)}")
+    sms = None
+    digits = "".join(ch for ch in (lead.get("phone") or "")
+                     if ch.isdigit())
+    if digits:
+        text = (f"Hi {first}, this is {co} about your {job} request "
+                f"in {city} via PermitPicker — happy to give you a "
+                f"quote. When's a good time to talk?")
+        sms = f"sms:{digits}?&body={_up.quote(text)}"
+    return mailto, sms
+
+
 def delivery_email(lead, recipient):
+    """Returns (subject, text_body, html_body). Structure keeps two
+    actions unmistakably separate: CONTACT THE HOMEOWNER (prefilled
+    links that CC PermitPicker) vs REPLY TO PERMITPICKER (replying
+    to this email reaches Andrew, never the homeowner)."""
+    import html as _html
     c = recipient["contractor"]
     job = lead.get("job_type") or "project"
     city = lead.get("city") or "the Raleigh area"
+    first = _first_name(lead)
+    mailto, sms = _contact_links(lead, c)
     details = [
         f"Name: {lead.get('name') or '—'}",
         f"Phone: {lead.get('phone') or '—'}",
@@ -573,28 +624,65 @@ def delivery_email(lead, recipient):
     ]
     if recipient["kind"] == "subscriber":
         subject = f"PermitPicker lead #{lead['id']}: {job} in {city}"
-        body = ("New homeowner request, delivered per your "
-                "PermitPicker lead subscription:\n\n"
-                + "\n".join(details)
-                + "\n\nShared with at most one other contractor. "
-                  "Speed matters — these go stale fast.\n\n"
-                  "— Andrew, PermitPicker\n")
+        intro = ("New homeowner request, delivered per your "
+                 "PermitPicker lead subscription.")
+        reply_extra = "Questions about your subscription? Same reply."
     else:
         subject = (f"PermitPicker lead #{lead['id']}: a {job} request "
                    f"in {city} — yours, free")
-        body = ("Hi — Andrew with PermitPicker. We publish what home "
-                "projects actually cost around Raleigh and Cary, "
-                "from real permit records, and homeowners request "
-                "quotes through the site.\n\n"
-                "This one just came in:\n\n"
-                + "\n".join(details)
-                + "\n\nYours, free — a sample of what our "
-                  "subscribers get the hour requests land. The "
-                  "homeowner consented to be contacted by matched "
-                  "local contractors. If you'd like these regularly, "
-                  "just reply and I'll set you up.\n\n"
-                  "— Andrew, PermitPicker\n")
-    return subject, body
+        intro = ("Hi — Andrew with PermitPicker. We publish what home "
+                 "projects actually cost around Raleigh and Cary, "
+                 "from real permit records, and homeowners request "
+                 "quotes through the site.\n\n"
+                 "This one just came in — yours, free, a sample of "
+                 "what our subscribers get the hour requests land. "
+                 "The homeowner consented to be contacted by matched "
+                 "local contractors.")
+        reply_extra = ("Want these regularly? That reply is also how "
+                       "you get set up.")
+    contact_lines = [f"CONTACT {first.upper()} ABOUT THIS JOB:"]
+    if mailto:
+        contact_lines.append(
+            f"Email {first} (message prefilled, copies PermitPicker "
+            f"automatically):\n{mailto}")
+    if lead.get("phone"):
+        contact_lines.append(
+            f"Call or text {first}: {lead['phone']}")
+    if not mailto and not lead.get("phone"):
+        contact_lines.append("(no contact details on this request)")
+    text = (intro + "\n\nTHE REQUEST\n" + "\n".join(details)
+            + "\n\n" + "\n".join(contact_lines)
+            + f"\n\nREPLY TO PERMITPICKER:\nJust reply to this "
+              f"email — it comes to me (Andrew at PermitPicker), "
+              f"not to {first}. {reply_extra}\n\n"
+              "— Andrew, PermitPicker\n")
+    esc = _html.escape
+    btn = ('display:inline-block;background:#0e7a6f;color:#ffffff;'
+           'text-decoration:none;padding:10px 16px;border-radius:6px;'
+           'font-weight:600;margin:4px 6px 4px 0')
+    buttons = ""
+    if mailto:
+        buttons += (f'<a href="{esc(mailto)}" style="{btn}">'
+                    f"Email {esc(first)} — prefilled, copies me</a>")
+    if sms:
+        buttons += (f'<a href="{esc(sms)}" style="{btn}">'
+                    f"Text {esc(first)}</a>")
+    rows = "".join(
+        f"<tr><td style='padding:2px 10px 2px 0;color:#55606a'>"
+        f"{esc(d.split(':', 1)[0])}</td><td>{esc(d.split(':', 1)[1].strip())}</td></tr>"
+        for d in details)
+    html_body = f"""<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1c2733;line-height:1.5">
+<p>{esc(intro).replace(chr(10) + chr(10), '</p><p>')}</p>
+<p style="margin-bottom:4px"><strong>THE REQUEST</strong></p>
+<table style="border-collapse:collapse">{rows}</table>
+<p style="margin:16px 0 6px"><strong>CONTACT {esc(first.upper())} ABOUT THIS JOB:</strong></p>
+<p>{buttons}</p>
+<p style="color:#55606a;font-size:13.5px">The email opens prefilled and copies PermitPicker automatically, so I can see the request was answered.</p>
+<p style="margin:16px 0 6px"><strong>REPLY TO PERMITPICKER:</strong></p>
+<p>Just reply to this email — it comes to me (Andrew at PermitPicker), not to {esc(first)}. {esc(reply_extra)}</p>
+<p>— Andrew, PermitPicker</p>
+</div>"""
+    return subject, text, html_body
 
 
 def apply_routing(roster, lead, routing, today):
@@ -809,12 +897,19 @@ def build_email(leads, records, roster, followups=None,
     return subject, "\n".join(lines) + "\n"
 
 
-def send_email(to, subject, body, reply_to=None, bcc=None):
+def send_email(to, subject, body, reply_to=None, bcc=None,
+               html=None):
     """Send via pipeline/send_digest.py (the send-pitch.yml approach:
     Resend API, RESEND_API_KEY env). Raises SystemExit on failure."""
     body_path = os.path.join(ROOT, "state", ".lead_alert_body.txt")
     with open(body_path, "w") as f:
         f.write(body)
+    html_path = None
+    if html:
+        html_path = os.path.join(ROOT, "state",
+                                 ".lead_alert_body.html")
+        with open(html_path, "w") as f:
+            f.write(html)
     try:
         r = subprocess.run(
             [sys.executable,
@@ -823,7 +918,8 @@ def send_email(to, subject, body, reply_to=None, bcc=None):
              "--to", to, "--from", FROM_ADDR,
              "--subject", subject, "--body-file", body_path]
             + (["--reply-to", reply_to] if reply_to else [])
-            + (["--bcc", bcc] if bcc else []),
+            + (["--bcc", bcc] if bcc else [])
+            + (["--html-file", html_path] if html_path else []),
             capture_output=True, text=True, timeout=120)
         sys.stdout.write(r.stdout)
         sys.stderr.write(r.stderr)
@@ -834,6 +930,8 @@ def send_email(to, subject, body, reply_to=None, bcc=None):
     finally:
         if os.path.exists(body_path):
             os.unlink(body_path)
+        if html_path and os.path.exists(html_path):
+            os.unlink(html_path)
 
 
 # ---------------------------------------------------------------------------
@@ -892,10 +990,11 @@ def main():
             for r in routing["recipients"]:
                 if r["channel"] != "email":
                     continue
-                subject, body = delivery_email(lead, r)
+                subject, body, html_body = delivery_email(lead, r)
                 try:
                     send_email(r["email"], subject, body,
-                               reply_to=REPLY_TO, bcc=DELIVERY_BCC)
+                               reply_to=REPLY_TO, bcc=DELIVERY_BCC,
+                               html=html_body)
                 except SystemExit:
                     failed = True
                     break
