@@ -570,11 +570,14 @@ def _display_co(name):
 
 
 def delivery_email(lead, recipient):
-    """Hub model (Andrew's design, 2026-10-24): the delivery goes to
-    the contractor with Reply-To = leads@ (responses come back to
-    PermitPicker, which passes them along) and BCC to Andrew AND
-    the homeowner — so the copy must read cleanly to both audiences.
-    No pitch in the delivery; the CTA lives in the follow-up."""
+    """Hub model (Andrew's design, 2026-10-24): the delivery goes
+    ONLY to the contractor — Reply-To = leads@ (responses come back
+    to PermitPicker, which passes them along), BCC to Andrew alone.
+    The homeowner never sees this email, and vice versa. The
+    homeowner's email appears in the details because deliveries
+    only ever go to subscribers and freebie recipients — the two
+    audiences allowed to see it (Andrew's gating rule). No pitch
+    in the delivery; the CTA lives in the follow-up."""
     job = lead.get("job_type") or "project"
     city = lead.get("city") or "the Raleigh area"
     first = _first_name(lead)
@@ -617,9 +620,9 @@ def delivery_email(lead, recipient):
 
 def customer_email(lead, emailed_recipients):
     """The mirror email to the HOMEOWNER (hub model): confirms who
-    got their request, Reply-To = leads@, BCC Andrew + the
-    contractors. Only built when the lead left an email and at
-    least one recipient was emailed."""
+    got their request, Reply-To = leads@, BCC Andrew only — the
+    contractors never see it. Only built when the lead left an
+    email and at least one recipient was emailed."""
     job = lead.get("job_type") or "project"
     city = lead.get("city") or "the Raleigh area"
     first = _first_name(lead)
@@ -703,8 +706,8 @@ def routing_lines(lead, routing, roster):
                      f"[fit {r['fit']}] — {via}")
     ci = routing.get("customer_intro")
     if ci == "sent":
-        lines.append("  Customer: intro email sent; also BCC'd on "
-                     "the deliveries above.")
+        lines.append("  Customer: intro email sent (nobody copied "
+                     "on it but you).")
     elif ci == "failed":
         lines.append("  Customer: INTRO EMAIL FAILED — deliveries "
                      "went out; email the homeowner by hand.")
@@ -957,12 +960,9 @@ def main():
                 if r["channel"] != "email":
                     continue
                 subject, body = delivery_email(lead, r)
-                bcc = [DELIVERY_BCC]
-                if (lead.get("email") or "").strip():
-                    bcc.append(lead["email"].strip())
                 try:
                     send_email(r["email"], subject, body,
-                               reply_to=REPLY_TO, bcc=bcc)
+                               reply_to=REPLY_TO, bcc=[DELIVERY_BCC])
                 except SystemExit:
                     failed = True
                     break
@@ -979,10 +979,10 @@ def main():
             routing["customer_intro"] = "skipped"
             if emailed and (lead.get("email") or "").strip():
                 c_subject, c_body = customer_email(lead, emailed)
-                c_bcc = [DELIVERY_BCC] + [r["email"] for r in emailed]
                 try:
                     send_email(lead["email"].strip(), c_subject,
-                               c_body, reply_to=REPLY_TO, bcc=c_bcc)
+                               c_body, reply_to=REPLY_TO,
+                               bcc=[DELIVERY_BCC])
                     routing["customer_intro"] = "sent"
                     for d in roster.get("dispatches", []):
                         if int(d.get("lead_id") or 0) == int(lead["id"]):
