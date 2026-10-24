@@ -1,0 +1,36 @@
+name: diag-leads
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe Supabase read path
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.request, urllib.parse
+          key = os.environ["SUPABASE_SERVICE_KEY"]
+          print("SUPABASE_URL:", os.environ["SUPABASE_URL"])
+          parts = key.split(".")
+          if len(parts) == 3:
+              payload = parts[1] + "=" * (-len(parts[1]) % 4)
+              claims = json.loads(base64.urlsafe_b64decode(payload))
+              print("key role claim:", claims.get("role"), "| ref:", claims.get("ref"))
+          else:
+              print("key is not a JWT; prefix:", key[:6])
+          def get(params):
+              q = urllib.parse.urlencode(params)
+              req = urllib.request.Request(
+                  os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/quote_requests?" + q,
+                  headers={"apikey": key, "Authorization": "Bearer " + key,
+                           "Prefer": "count=exact"})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  return r.status, r.headers.get("Content-Range"), r.read().decode()[:300]
+          print("all rows:", get({"select": "id", "order": "id.asc", "limit": "50"}))
+          PY
