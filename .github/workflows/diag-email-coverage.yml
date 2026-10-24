@@ -23,7 +23,8 @@ jobs:
           url = os.environ["SUPABASE_URL"].rstrip("/")
           key = os.environ["SUPABASE_SERVICE_KEY"]
           H = {"apikey": key, "Authorization": f"Bearer {key}"}
-          recs = json.load(open("/tmp/permits_full.json"))
+          payload = json.load(open("/tmp/permits_full.json"))
+          recs = payload["permits"] if isinstance(payload, dict) else payload
           phones = set()
           for r in recs:
               p = (r.get("contractor_phone") or "").strip()
