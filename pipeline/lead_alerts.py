@@ -71,6 +71,8 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DEFAULT_STATE = os.path.join(ROOT, "state", "lead_alerts.json")
 PERMITS_URL = "https://permitpicker.com/data/permits.json"
 FROM_ADDR = "andrew@permitpicker.com"
+REPLY_TO = "leads@permitpicker.com"  # contractor replies land here
+DELIVERY_BCC = "andrew@permitpicker.com"  # Andrew sees every delivery
 DEFAULT_TO = "andrew@permitpicker.com"
 
 
@@ -570,7 +572,7 @@ def delivery_email(lead, recipient):
         f"Details: {lead.get('details') or '—'}",
     ]
     if recipient["kind"] == "subscriber":
-        subject = f"PermitPicker lead: {job} in {city}"
+        subject = f"PermitPicker lead #{lead['id']}: {job} in {city}"
         body = ("New homeowner request, delivered per your "
                 "PermitPicker lead subscription:\n\n"
                 + "\n".join(details)
@@ -578,7 +580,8 @@ def delivery_email(lead, recipient):
                   "Speed matters — these go stale fast.\n\n"
                   "— Andrew, PermitPicker\n")
     else:
-        subject = f"A {job} request in {city} — yours, free (PermitPicker)"
+        subject = (f"PermitPicker lead #{lead['id']}: a {job} request "
+                   f"in {city} — yours, free")
         body = ("Hi — Andrew with PermitPicker. We publish what home "
                 "projects actually cost around Raleigh and Cary, "
                 "from real permit records, and homeowners request "
@@ -806,7 +809,7 @@ def build_email(leads, records, roster, followups=None,
     return subject, "\n".join(lines) + "\n"
 
 
-def send_email(to, subject, body):
+def send_email(to, subject, body, reply_to=None, bcc=None):
     """Send via pipeline/send_digest.py (the send-pitch.yml approach:
     Resend API, RESEND_API_KEY env). Raises SystemExit on failure."""
     body_path = os.path.join(ROOT, "state", ".lead_alert_body.txt")
@@ -818,7 +821,9 @@ def send_email(to, subject, body):
              os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "send_digest.py"),
              "--to", to, "--from", FROM_ADDR,
-             "--subject", subject, "--body-file", body_path],
+             "--subject", subject, "--body-file", body_path]
+            + (["--reply-to", reply_to] if reply_to else [])
+            + (["--bcc", bcc] if bcc else []),
             capture_output=True, text=True, timeout=120)
         sys.stdout.write(r.stdout)
         sys.stderr.write(r.stderr)
@@ -889,7 +894,8 @@ def main():
                     continue
                 subject, body = delivery_email(lead, r)
                 try:
-                    send_email(r["email"], subject, body)
+                    send_email(r["email"], subject, body,
+                               reply_to=REPLY_TO, bcc=DELIVERY_BCC)
                 except SystemExit:
                     failed = True
                     break
