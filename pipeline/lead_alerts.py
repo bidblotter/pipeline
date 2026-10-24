@@ -569,23 +569,16 @@ def _display_co(name):
     return n.title() if n.isupper() else n
 
 
-def _delivery_reply_to(lead):
-    """Replies to a delivery email go to the HOMEOWNER (their email
-    from the quote form), so the contractor's response reaches the
-    customer directly. When the homeowner left no email, replies
-    fall back to leads@ (Andrew)."""
-    return (lead.get("email") or "").strip() or REPLY_TO
-
-
 def delivery_email(lead, recipient):
-    """Simple by design (Andrew's call, 2026-10-23): the email
-    delivers the lead and makes one thing unmistakable — replying
-    responds to the HOMEOWNER (Reply-To is set to them). No buttons,
-    no pitch; the subscribe CTA lives in the follow-up email."""
+    """Hub model (Andrew's design, 2026-10-24): the delivery goes to
+    the contractor with Reply-To = leads@ (responses come back to
+    PermitPicker, which passes them along) and BCC to Andrew AND
+    the homeowner — so the copy must read cleanly to both audiences.
+    No pitch in the delivery; the CTA lives in the follow-up."""
     job = lead.get("job_type") or "project"
     city = lead.get("city") or "the Raleigh area"
     first = _first_name(lead)
-    has_email = bool((lead.get("email") or "").strip())
+    phone_txt = lead.get("phone") or "the number above"
     details = [
         f"Name: {lead.get('name') or '—'}",
         f"Phone: {lead.get('phone') or '—'}",
@@ -596,21 +589,13 @@ def delivery_email(lead, recipient):
         f"Budget: {lead.get('budget') or '—'}",
         f"Details: {lead.get('details') or '—'}",
     ]
-    phone_txt = lead.get("phone") or "the number above"
-    if has_email:
-        respond = (f"HOW TO RESPOND:\nReply to this email and your "
-                   f"response goes directly to {first}, the "
-                   f"homeowner — this email is addressed so replies "
-                   f"reach them, not PermitPicker. You can also call "
-                   f"or text them at {phone_txt}.\n\nQuestions for "
-                   f"PermitPicker instead? Don't reply — write to "
-                   f"{REPLY_TO}.")
-    else:
-        respond = (f"HOW TO RESPOND:\n{first} didn't leave an "
-                   f"email, so call or text them at "
-                   f"{lead.get('phone') or 'the number above'}. "
-                   f"(Replying to this email reaches me at "
-                   f"PermitPicker.)")
+    direct = f"call or text them at {phone_txt}"
+    if (lead.get("email") or "").strip():
+        direct += f", or email {lead['email'].strip()}"
+    respond = (f"HOW TO RESPOND:\nReply to this email — your "
+               f"response comes to PermitPicker and we'll make sure "
+               f"it reaches {first}. Or {direct} directly. Speed "
+               f"matters — these requests go stale fast.")
     if recipient["kind"] == "subscriber":
         subject = f"PermitPicker lead #{lead['id']}: {job} in {city}"
         intro = ("New homeowner request, delivered per your "
@@ -622,12 +607,37 @@ def delivery_email(lead, recipient):
                  "projects actually cost around Raleigh and Cary, "
                  "from real permit records, and homeowners request "
                  "quotes through the site.\n\n"
-                 "This one just came in — yours, free, a sample of "
-                 "what our subscribers get the hour requests land. "
-                 "The homeowner consented to be contacted by matched "
-                 "local contractors.")
+                 "This request just came in, and we're sharing it "
+                 "with you at no charge. The homeowner consented to "
+                 "be contacted by matched local contractors.")
     body = (intro + "\n\nTHE REQUEST\n" + "\n".join(details)
             + "\n\n" + respond + "\n\n— Andrew, PermitPicker\n")
+    return subject, body
+
+
+def customer_email(lead, emailed_recipients):
+    """The mirror email to the HOMEOWNER (hub model): confirms who
+    got their request, Reply-To = leads@, BCC Andrew + the
+    contractors. Only built when the lead left an email and at
+    least one recipient was emailed."""
+    job = lead.get("job_type") or "project"
+    city = lead.get("city") or "the Raleigh area"
+    first = _first_name(lead)
+    lines = [f"  {_display_co(r['contractor']['name'])} — "
+             f"{r['contractor']['phone']}" for r in emailed_recipients]
+    subject = f"PermitPicker: your {job} request in {city} — sent"
+    body = (f"Hi {first},\n\n"
+            f"Thanks for requesting quotes through PermitPicker. "
+            f"We've sent your {job} request to these matched local "
+            f"contractors:\n\n" + "\n".join(lines) + "\n\n"
+            "They have your contact details and typically respond "
+            "within one business day. If you'd rather reach out "
+            "yourself, their numbers are above.\n\n"
+            "Need anything from us? Just reply to this email — "
+            "replies come to PermitPicker. And if nobody's "
+            "contacted you within a couple of days, reply and let "
+            "us know; we'll line up another contractor.\n\n"
+            "— Andrew, PermitPicker\n")
     return subject, body
 
 
@@ -660,6 +670,8 @@ def apply_routing(roster, lead, routing, today):
         "sent": sent,
         "status": "delivered" if delivered else "awaiting_manual",
         "to": tos,
+        "customer_email": (lead.get("email") or "").strip() or None,
+        "customer_intro_sent": False,
         "homeowner_check": {
             "due": (today + dt.timedelta(days=2)).isoformat()
             if delivered else None, "done": None},
@@ -689,6 +701,13 @@ def routing_lines(lead, routing, roster):
                     "Muse 'sent' to start the follow-up clocks")
         lines.append(f"  → {c['name']} — {c['phone']}{badge} "
                      f"[fit {r['fit']}] — {via}")
+    ci = routing.get("customer_intro")
+    if ci == "sent":
+        lines.append("  Customer: intro email sent; also BCC'd on "
+                     "the deliveries above.")
+    elif ci == "failed":
+        lines.append("  Customer: INTRO EMAIL FAILED — deliveries "
+                     "went out; email the homeowner by hand.")
     link = roster.get("stripe_lead_link") or "(Stripe link not set yet)"
     for c, pts, why in routing["pitch_targets"]:
         lines.append(
@@ -864,7 +883,8 @@ def send_email(to, subject, body, reply_to=None, bcc=None,
              "--to", to, "--from", FROM_ADDR,
              "--subject", subject, "--body-file", body_path]
             + (["--reply-to", reply_to] if reply_to else [])
-            + (["--bcc", bcc] if bcc else [])
+            + (["--bcc", ",".join(bcc) if isinstance(bcc, list)
+                 else bcc] if bcc else [])
             + (["--html-file", html_path] if html_path else []),
             capture_output=True, text=True, timeout=120)
         sys.stdout.write(r.stdout)
@@ -937,10 +957,12 @@ def main():
                 if r["channel"] != "email":
                     continue
                 subject, body = delivery_email(lead, r)
+                bcc = [DELIVERY_BCC]
+                if (lead.get("email") or "").strip():
+                    bcc.append(lead["email"].strip())
                 try:
                     send_email(r["email"], subject, body,
-                               reply_to=_delivery_reply_to(lead),
-                               bcc=DELIVERY_BCC)
+                               reply_to=REPLY_TO, bcc=bcc)
                 except SystemExit:
                     failed = True
                     break
@@ -952,6 +974,24 @@ def main():
                 break  # retry this lead (and the rest) next run
             if apply_routing(roster, lead, routing, today):
                 roster_dirty = True
+            emailed = [r for r in routing["recipients"]
+                       if r["channel"] == "email"]
+            routing["customer_intro"] = "skipped"
+            if emailed and (lead.get("email") or "").strip():
+                c_subject, c_body = customer_email(lead, emailed)
+                c_bcc = [DELIVERY_BCC] + [r["email"] for r in emailed]
+                try:
+                    send_email(lead["email"].strip(), c_subject,
+                               c_body, reply_to=REPLY_TO, bcc=c_bcc)
+                    routing["customer_intro"] = "sent"
+                    for d in roster.get("dispatches", []):
+                        if int(d.get("lead_id") or 0) == int(lead["id"]):
+                            d["customer_intro_sent"] = True
+                except SystemExit:
+                    routing["customer_intro"] = "failed"
+                    print(f"lead_alerts: customer intro email failed "
+                          f"for lead {lead['id']} (deliveries already "
+                          f"sent)", file=sys.stderr, flush=True)
             routings[int(lead["id"])] = routing
             processed.append(lead)
 
