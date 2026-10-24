@@ -45,7 +45,11 @@ def main():
         "text": text,
     }
     if args.reply_to:
-        payload["reply_to"] = args.reply_to
+        # Resend accepts a string or an array for reply_to; a bare
+        # comma-joined string is rejected (422). Split multi-address
+        # values ("a@x, b@y") into an array.
+        addrs = [a.strip() for a in args.reply_to.split(",") if a.strip()]
+        payload["reply_to"] = addrs if len(addrs) > 1 else args.reply_to
         print(f"send_digest: reply_to={args.reply_to}", flush=True)
     if args.bcc:
         payload["bcc"] = [a.strip() for a in args.bcc.split(",")
