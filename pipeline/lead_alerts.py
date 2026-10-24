@@ -569,6 +569,15 @@ def _display_co(name):
     return n.title() if n.isupper() else n
 
 
+def _delivery_reply_to(lead):
+    """Multi-address Reply-To (Andrew's pick, 2026-10-24): the
+    homeowner's email + leads@, so a contractor's reply reaches
+    the homeowner AND copies PermitPicker in one click. Falls back
+    to leads@ alone when the homeowner left no email."""
+    email = (lead.get("email") or "").strip()
+    return f"{email}, {REPLY_TO}" if email else REPLY_TO
+
+
 def delivery_email(lead, recipient):
     """Hub model (Andrew's design, 2026-10-24): the delivery goes
     ONLY to the contractor — Reply-To = leads@ (responses come back
@@ -593,12 +602,18 @@ def delivery_email(lead, recipient):
         f"Details: {lead.get('details') or '—'}",
     ]
     direct = f"call or text them at {phone_txt}"
-    if (lead.get("email") or "").strip():
+    has_email = bool((lead.get("email") or "").strip())
+    if has_email:
         direct += f", or email {lead['email'].strip()}"
-    respond = (f"HOW TO RESPOND:\nReply to this email — your "
-               f"response comes to PermitPicker and we'll make sure "
-               f"it reaches {first}. Or {direct} directly. Speed "
-               f"matters — these requests go stale fast.")
+        respond = (f"HOW TO RESPOND:\nReply to this email — your "
+                   f"response goes to {first} AND to PermitPicker "
+                   f"(both are on the reply), so we can track the "
+                   f"follow-up. Or {direct} directly. Speed matters "
+                   f"— these requests go stale fast.")
+    else:
+        respond = (f"HOW TO RESPOND:\n{first} didn't leave an "
+                   f"email, so {direct} directly. (Replying to this "
+                   f"email reaches me at PermitPicker.)")
     if recipient["kind"] == "subscriber":
         subject = f"PermitPicker lead #{lead['id']}: {job} in {city}"
         intro = ("New homeowner request, delivered per your "
@@ -962,7 +977,8 @@ def main():
                 subject, body = delivery_email(lead, r)
                 try:
                     send_email(r["email"], subject, body,
-                               reply_to=REPLY_TO, bcc=[DELIVERY_BCC])
+                               reply_to=_delivery_reply_to(lead),
+                               bcc=[DELIVERY_BCC])
                 except SystemExit:
                     failed = True
                     break
