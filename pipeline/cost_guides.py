@@ -821,7 +821,7 @@ def render_form(cat, place, city_value, p25, med, p75, n_contractors=0):
     <label class="consent"><input type="checkbox" id="q-consent" required>
       <span>By submitting, I agree that matched local contractors may contact me about my project by phone, text, or email.</span></label>
     <button type="submit">Get my free quotes</button>
-    <p class="trust">Free · No obligation · Your number goes to at most 2 local contractors — never sold, never shared with anyone else.</p>
+    <p class="trust">Free · No obligation · Your number goes only to matched local contractors — never sold, never shared with anyone else.</p>
     <p id="q-msg"></p>
   </form>
 </section>
@@ -865,7 +865,7 @@ document.getElementById("q-form").addEventListener("submit", async e => {{
     if (res.ok) {{
       msg.className = "ok";
       if (window.gtag) gtag("event", "quote_request", {{job_type: payload.job_type, city: payload.city, page_path: location.pathname}});
-      msg.textContent = "Request sent — up to 2 local contractors can now get in touch about your project.";
+      msg.textContent = "Request sent — matched local contractors can now get in touch about your project.";
       e.target.reset();
     }} else {{
       msg.className = "err";
@@ -1012,7 +1012,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
   </div>
   <div class="hero-cta">
     <a class="cta-btn quote-cta" data-cta="hero" href="#get-quotes">Get {esc(job)} quotes in {esc(place)}</a>
-    <span class="cta-note">Free · no obligation · at most 2 local contractors, never a list</span>
+    <span class="cta-note">Free · no obligation · matched local contractors, never a list</span>
   </div>
   <div class="card">
     <h2>How declared values spread out</h2>
