@@ -48,7 +48,8 @@ def main():
         payload["reply_to"] = args.reply_to
         print(f"send_digest: reply_to={args.reply_to}", flush=True)
     if args.bcc:
-        payload["bcc"] = [args.bcc]
+        payload["bcc"] = [a.strip() for a in args.bcc.split(",")
+                          if a.strip()]
         print(f"send_digest: bcc={args.bcc}", flush=True)
     if args.html_file:
         with open(args.html_file) as f:
