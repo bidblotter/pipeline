@@ -590,7 +590,7 @@ def delivery_email(lead, recipient):
                 + "\n".join(details)
                 + "\n\nYours, free — a sample of what our "
                   "subscribers get the hour requests land. The "
-                  "homeowner consented to be contacted by up to 2 "
+                  "homeowner consented to be contacted by matched "
                   "local contractors. If you'd like these regularly, "
                   "just reply and I'll set you up.\n\n"
                   "— Andrew, PermitPicker\n")
