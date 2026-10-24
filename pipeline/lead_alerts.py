@@ -557,6 +557,34 @@ def route_lead(lead, records, roster):
             "pool_size": len(scored)}
 
 
+def manual_prompt_email(lead, recipient):
+    """Standalone prompt to Andrew when a picked recipient has no
+    email on file (Andrew's rule, 2026-10-24: email runs the
+    automation; a missing email must PROMPT him to call/text
+    directly). Sent in addition to the batch report's line, so a
+    phone-only lead can't hide inside a longer email."""
+    c = recipient["contractor"]
+    kind = recipient["kind"]
+    first = _first_name(lead)
+    subject = (f"PermitPicker: call needed — lead #{lead['id']} for "
+               f"{c['name']} ({c['phone']})")
+    body = (f"CALL/TEXT NEEDED — this contractor has no email on file, "
+            f"so the lead was NOT emailed to them.\n\n"
+            f"Contractor: {c['name']} — {c['phone']} "
+            f"({kind}; fit {recipient['fit']})\n"
+            f"Lead #{lead['id']}: {lead.get('job_type')} in "
+            f"{lead.get('city')}, budget {lead.get('budget') or '—'}, "
+            f"timeline {lead.get('timeline') or '—'}\n"
+            f"Homeowner: {lead.get('name')} — {lead.get('phone')}"
+            f"{' — ' + lead['email'].strip() if (lead.get('email') or '').strip() else ''}\n"
+            f"Details: {lead.get('details') or '—'}\n\n"
+            f"Call or text them the lead, then tell Muse 'sent lead "
+            f"#{lead['id']} to {c['name']}' — that logs it and starts "
+            f"the +2d/+7d follow-up clocks"
+            f"{' (and burns their freebie)' if kind == 'freebie' else ''}.")
+    return subject, body
+
+
 def _first_name(lead):
     name = (lead.get("name") or "").strip()
     return name.split()[0] if name else "the homeowner"
@@ -1008,6 +1036,20 @@ def main():
                     print(f"lead_alerts: customer intro email failed "
                           f"for lead {lead['id']} (deliveries already "
                           f"sent)", file=sys.stderr, flush=True)
+            for r in routing["recipients"]:
+                if r["channel"] == "email":
+                    continue
+                p_subject, p_body = manual_prompt_email(lead, r)
+                try:
+                    send_email(DELIVERY_BCC, p_subject, p_body)
+                except SystemExit:
+                    # Prompt failed, but the lead is already logged
+                    # and the batch report still carries the manual
+                    # line — never hold the watermark for a prompt.
+                    print(f"lead_alerts: manual prompt failed for "
+                          f"lead {lead['id']} "
+                          f"({r['contractor']['name']})",
+                          file=sys.stderr, flush=True)
             routings[int(lead["id"])] = routing
             processed.append(lead)
 
