@@ -1,0 +1,73 @@
+name: diag-top-picks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Measure email coverage among top picks
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          curl -sf -o /tmp/permits_full.json \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            "$SUPABASE_URL/storage/v1/object/internal/permits_full.json"
+          python3 - <<'PY'
+          import sys, json, os, datetime as dt, urllib.request, urllib.parse
+          sys.path.insert(0, "pipeline")
+          import lead_alerts as la
+          payload = json.load(open("/tmp/permits_full.json"))
+          recs = payload["permits"] if isinstance(payload, dict) else payload
+          stats = la._contractor_stats(recs)
+          all_dates = [d for c in stats for d in c["dates"]]
+          as_of = dt.date.fromisoformat(max(all_dates))
+          def n12(c):
+              return sum(1 for d in c["dates"]
+                         if (as_of - dt.date.fromisoformat(d)).days <= 365)
+          def age(c):
+              return (as_of - dt.date.fromisoformat(c["latest"])).days if c["latest"] else 9999
+          gated = [c for c in stats if c["phone"] and age(c) <= 120 and n12(c) >= 3]
+          gated.sort(key=lambda c: -n12(c))
+          # email map from the permits table (router's exact-phone match)
+          url = os.environ["SUPABASE_URL"].rstrip("/")
+          key = os.environ["SUPABASE_SERVICE_KEY"]
+          H = {"apikey": key, "Authorization": f"Bearer {key}"}
+          email_by_phone = {}
+          off = 0
+          while True:
+              q = urllib.parse.urlencode({
+                  "select": "contractor_phone,contractor_email",
+                  "contractor_email": "not.is.null",
+                  "order": "contractor_phone.asc",
+                  "limit": "1000", "offset": str(off)})
+              req = urllib.request.Request(url + "/rest/v1/permits?" + q, headers=H)
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  rows = json.loads(resp.read())
+              if not rows:
+                  break
+              for row in rows:
+                  p = (row.get("contractor_phone") or "").strip()
+                  e = (row.get("contractor_email") or "").strip()
+                  if p and "@" in e and p not in email_by_phone:
+                      email_by_phone[p] = e
+              off += 1000
+          def report(label, group):
+              have = sum(1 for c in group if c["phone"] in email_by_phone)
+              print(f"{label}: n={len(group)} with-email={have} "
+                    f"({100.0 * have / max(1, len(group)):.1f}%)")
+          print("as_of:", as_of, "| gate-passing contractors:", len(gated))
+          report("TOP 20 by trailing-year volume", gated[:20])
+          report("TOP 50 by trailing-year volume", gated[:50])
+          sweet = [c for c in gated if 3 <= n12(c) <= 15]
+          report("SWEET SPOT 3-15/yr (router's band)", sweet)
+          report("ALL gate-passers", gated)
+          PY
