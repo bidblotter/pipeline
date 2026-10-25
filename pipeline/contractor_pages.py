@@ -132,10 +132,14 @@ def collect_groups(indexed_records):
         g["raw_names"].append(raw)
         if r.get("contractor_display"):
             g["displays"].append(r["contractor_display"])
+        # Median uses valued permits only: missing/zero declarations
+        # must not drag the contractor's median down.
         try:
-            g["vals"].append(float(r.get("valuation") or 0))
+            v = float(r.get("valuation") or 0)
         except (TypeError, ValueError):
-            g["vals"].append(0.0)
+            v = 0.0
+        if v > 0:
+            g["vals"].append(v)
         phone = (r.get("contractor_phone") or "").strip()
         if phone:
             g["phones"][phone] += 1
@@ -160,6 +164,7 @@ def collect_groups(indexed_records):
             "name": name,
             "count": len(g["indices"]),
             "median": cg.percentile(vals, 0.5),
+            "n_vals": len(vals),
             "phone": g["phones"].most_common(1)[0][0] if g["phones"] else "",
             "first": dates[0] if dates else "",
             "latest": dates[-1] if dates else "",
@@ -330,7 +335,7 @@ def render_ranking(cell, ranking, profile_slugs, all_cells, gen_date):
                 '<a class="call" href="/permitpulse/">Get contact details</a>')
         rows.append(f"""        <tr><td class="rank">{i}</td><td>{name_html}</td>
           <td>{c['count']}</td><td>{esc(activity)}</td>
-          <td>{cg.money(c['median'])}</td><td>{call}</td></tr>""")
+          <td>{cg.median_cell(c)}</td><td>{call}</td></tr>""")
     rows_html = "\n".join(rows)
     # Sibling links: same category in other places, then this place's other
     # homeowner categories.
@@ -415,12 +420,13 @@ def render_ranking(cell, ranking, profile_slugs, all_cells, gen_date):
   <div class="card">
     <h2>Top {len(top)} by permitted activity</h2>
     <table class="co rank">
-      <tr><th>#</th><th>Contractor</th><th>Permits</th><th>Activity</th><th>Typical project size</th><th></th></tr>
+      <tr><th>#</th><th>Contractor</th><th>Permits</th><th>Activity</th><th>Median declared value</th><th></th></tr>
 {rows_html}
     </table>
-    <p class="rank-note">“Typical project size” is the median declared permit
+    <p class="rank-note">“Median declared value” is the median declared permit
     value for that contractor within this category and place. Declared values
-    are permit estimates, not final invoices.</p>
+    are permit estimates, not final invoices. Shown only where based on 5 or
+    more valued permits.</p>
   </div>
   <div class="card">
     <h2>More contractor rankings</h2>
@@ -481,7 +487,7 @@ def render_profile(profile, cells, gen_date):
         if not s:
             continue
         cat_rows.append(f"""        <tr><td><a href="/contractors/{cat['id']}/"><b>{esc(cat['label'])}</b></a></td>
-          <td>{s['count']}</td><td>{cg.money(s['median'])}</td>
+          <td>{s['count']}</td><td>{cg.median_cell(s)}</td>
           <td>{esc(cg.fmt_span(s['first'], s['latest']))}</td></tr>""")
     cat_rows_html = "\n".join(cat_rows)
     appearances = []
@@ -557,13 +563,14 @@ def render_profile(profile, cells, gen_date):
   <div class="card">
     <h2>Activity by category</h2>
     <table class="co">
-      <tr><th>Category</th><th>Permits</th><th>Typical project size</th><th>Activity</th></tr>
+      <tr><th>Category</th><th>Permits</th><th>Median declared value</th><th>Activity</th></tr>
 {cat_rows_html}
     </table>
-    <p class="rank-note">Typical project size is the median declared permit
+    <p class="rank-note">Median declared value is the median declared permit
     value in that category. Categories can overlap on combined projects, so
     category rows may count a combined permit more than once; the headline
-    total counts each matching permit once.</p>
+    total counts each matching permit once. Shown only where based on 5 or
+    more valued permits.</p>
   </div>
   <div class="card">
     <h2>Where the permitted work is</h2>
@@ -604,6 +611,7 @@ def aggregate_profiles(records, cells, rankings):
             p["indices"].update(g["indices"])
             p["categories"][cat["id"]] = {
                 "count": g["count"], "median": g["median"],
+                "n_vals": g["n_vals"],
                 "first": g["first"], "latest": g["latest"],
             }
             p["cat_city_counts"][cat["id"]] = g["cities"]
