@@ -106,8 +106,9 @@ dollars.
 
 Contractor sections rank contractors by their count of permits in the
 same category+cell set, using the pipeline's contractor normalization
-(normalize.contractor_key / is_contractor). "Typical project size" is
-the contractor's median declared value within the set.
+(normalize.contractor_key / is_contractor). "Median declared value" is
+the contractor's median declared value within the set, shown only
+with 5 or more valued permits.
 
 The quote-request form posts to LEAD_ENDPOINT in the page script. It is
 currently null: the Supabase project has no table that can hold a lead
@@ -554,6 +555,16 @@ def band_counts(vals):
 # Contractors
 # ---------------------------------------------------------------------------
 
+MIN_VALUED_FOR_MEDIAN = 5
+
+
+def median_cell(c):
+    """Per-contractor median display: suppressed ("—") when based on
+    fewer than MIN_VALUED_FOR_MEDIAN valued permits."""
+    n = c.get("n_vals", c.get("count", 0))
+    return money(c["median"]) if n >= MIN_VALUED_FOR_MEDIAN else "—"
+
+
 def top_contractors(records, limit=8):
     """Rank contractors by permit count within this category+cell set."""
     groups = {}
@@ -569,7 +580,15 @@ def top_contractors(records, limit=8):
         g["names"].append(raw)
         if r.get("contractor_display"):
             g["displays"].append(r["contractor_display"])
-        g["vals"].append(float(r["valuation"]))
+        # Median uses valued permits only: missing/zero declarations
+        # must not drag the contractor's median down. Count still
+        # counts every grouped record (see "count" below).
+        try:
+            v = float(r["valuation"])
+        except (TypeError, ValueError):
+            v = 0.0
+        if v > 0:
+            g["vals"].append(v)
         ph = (r.get("contractor_phone") or "").strip()
         if ph:
             g["phones"][ph] += 1
@@ -585,8 +604,9 @@ def top_contractors(records, limit=8):
         phone = g["phones"].most_common(1)[0][0] if g["phones"] else ""
         vals = sorted(g["vals"])
         out.append({
-            "name": name, "count": len(vals),
-            "median": percentile(vals, 0.5), "phone": phone,
+            "name": name, "count": len(g["names"]),
+            "median": percentile(vals, 0.5), "n_vals": len(vals),
+            "phone": phone,
             "latest": g["latest"],
         })
     # Rank by permit count desc, then most recent activity desc.
@@ -907,17 +927,17 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     if contractors:
         rows_html = "\n".join(
             f"""        <tr><td><b>{esc(c['name'])}</b></td>
-          <td>{c['count']}</td><td>{money(c['median'])}</td>
+          <td>{c['count']}</td><td>{median_cell(c)}</td>
           <td><a class="call" href="#get-quotes">Get contact details</a></td></tr>"""
             for c in contractors)
         co_html = f"""<div class="card">
     <h2>Contractors actively doing this work in {esc(place)}</h2>
     <table class="co">
-      <tr><th>Contractor</th><th>Permits here</th><th>Typical project size</th><th></th></tr>
+      <tr><th>Contractor</th><th>Permits here</th><th>Median declared value</th><th></th></tr>
 {rows_html}
     </table>
     <p class="rank-note">Ranked by recent permit activity from public records — not advertising.
-    “Typical project size” is the median declared value of that contractor's {esc(job)} permits in this set.</p>
+    “Median declared value” is the median declared value of that contractor's {esc(job)} permits in this set. Shown only where based on 5 or more valued permits.</p>
     <p class="rank-note"><a href="/contractors/{slug}/">See the full activity ranking for {esc(place)}</a></p>
   </div>"""
     else:
