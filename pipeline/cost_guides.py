@@ -986,6 +986,10 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
             {"@type": "Dataset",
              "name": f"{cat['label']} costs in {place} — declared permit values",
              "description": desc, "url": url,
+             # Compiled from NC public records (N.C.G.S. ch. 132:
+             # property of the people); dedicated to the public
+             # domain so the dataset itself is freely reusable.
+             "license": "https://creativecommons.org/publicdomain/zero/1.0/",
              "creator": {"@type": "Organization", "name": "PermitPicker",
                          "url": f"{SITE}/"},
              "spatialCoverage": place,
