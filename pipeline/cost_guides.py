@@ -972,6 +972,12 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
     note_html = (f'    <p><b>Data note.</b> {esc(note)}</p>\n'
                  if note else "")
     faq_html = render_faq(faqs)
+    permit_html = ""
+    if cat["id"] in PERMIT_GUIDES:
+        permit_html = f"""  <div class="card">
+    <h2>Do I need a permit for a {esc(cat['job'])}?</h2>
+    <p>Most {esc(cat['job'])} projects in Raleigh, Cary, and Wake County need a building permit before work begins — including small ones. <a href="/permits/{cat['id']}/">Read the permit guide</a>.</p>
+  </div>"""
     ld_graph = {
         "@context": "https://schema.org",
         "@graph": [
@@ -1058,6 +1064,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
 {note_html}  </div>
 {co_html}
 {form_html}
+{permit_html}
 {faq_html}
   <div class="card">
     <h2>More cost guides</h2>
@@ -1165,7 +1172,15 @@ def render_index(cells, gen_date):
 STATIC_SITEMAP_URLS = [
     ("https://permitpicker.com/", "daily", "1.0"),
     ("https://permitpicker.com/permitpulse/", "weekly", "0.7"),
+    ("https://permitpicker.com/permits/", "weekly", "0.8"),
 ]
+
+# Categories with a published /permits/ guide. Cost guides link to the
+# permit guide only for these (never to a guide that doesn't exist).
+PERMIT_GUIDES = {"deck"}
+for _pg in sorted(PERMIT_GUIDES):
+    STATIC_SITEMAP_URLS.append(
+        (f"https://permitpicker.com/permits/{_pg}/", "weekly", "0.8"))
 
 
 def write_sitemap(page_slugs):
