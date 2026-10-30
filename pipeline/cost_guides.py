@@ -142,6 +142,15 @@ SITE = "https://permitpicker.com"
 # permitpicker@gmail.com). The tel: click listener is registered
 # here once; quote-form and signup success handlers fire their own
 # conversion events (quote_request / permitpulse_signup).
+META_EXTRA = """<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:image" content="https://permitpicker.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="PermitPicker — what home projects really cost in Raleigh & Cary">
+<meta name="twitter:card" content="summary_large_image">"""
+
+
 GA_HEAD = """<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-VW5K8L3BYS"></script>
 <script>
@@ -1021,6 +1030,7 @@ def render_guide(cat, place, place_slug, records, gen_date, all_pages):
 <meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="{esc(desc)}">
 <meta property="og:url" content="{url}">
+{META_EXTRA}
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 {GA_HEAD}
@@ -1138,6 +1148,7 @@ def render_index(cells, gen_date):
 <meta property="og:title" content="Homeowner cost guides — PermitPicker">
 <meta property="og:description" content="Typical declared costs for local home projects, computed from public permit records in Wake County, Raleigh & Cary.">
 <meta property="og:url" content="{SITE}/costs/">
+{META_EXTRA}
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 {GA_HEAD}
@@ -1183,7 +1194,7 @@ for _pg in sorted(PERMIT_GUIDES):
         (f"https://permitpicker.com/permits/{_pg}/", "weekly", "0.8"))
 
 
-def write_sitemap(page_slugs):
+def write_sitemap(page_slugs, gen_date):
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for loc, freq, pri in STATIC_SITEMAP_URLS:
@@ -1193,6 +1204,7 @@ def write_sitemap(page_slugs):
                  '<changefreq>daily</changefreq><priority>0.9</priority></url>')
     for slug in page_slugs:
         lines.append(f"  <url><loc>{SITE}/costs/{slug}/</loc>"
+                     f"<lastmod>{gen_date}</lastmod>"
                      "<changefreq>daily</changefreq>"
                      "<priority>0.8</priority></url>")
     lines.append("</urlset>")
@@ -1270,7 +1282,7 @@ def main():
 
     with open(os.path.join(OUT_DIR, "index.html"), "w") as f:
         f.write(render_index(index_cells, gen_date))
-    write_sitemap(written)
+    write_sitemap(written, gen_date)
     print(f"cost_guides: wrote /costs/ index + {len(written)} guide pages "
           f"from {len(records)} permits (data generated {gen_date})")
     for cell in index_cells:
