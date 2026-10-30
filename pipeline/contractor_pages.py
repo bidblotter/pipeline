@@ -275,6 +275,7 @@ def render_hub(cells, rankings, profiles, gen_date):
 <meta property="og:title" content="Local contractor rankings by permit activity | PermitPicker">
 <meta property="og:description" content="See which local contractors are actively pulling permits for decks, additions, pools, accessory buildings, and remodels.">
 <meta property="og:url" content="{SITE}/contractors/">
+{cg.META_EXTRA}
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 {cg.GA_HEAD}
@@ -387,6 +388,7 @@ def render_ranking(cell, ranking, profile_slugs, all_cells, gen_date):
 <meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="Activity-based local contractor ranking from public permit records — not a quality or paid-placement ranking.">
 <meta property="og:url" content="{SITE}/contractors/{cell['slug']}/">
+{cg.META_EXTRA}
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 {cg.GA_HEAD}
@@ -541,6 +543,7 @@ def render_profile(profile, cells, gen_date):
 <meta property="og:title" content="{esc(name)} — public permit activity profile | PermitPicker">
 <meta property="og:description" content="Aggregate permitted activity by category and city from public records. Not a quality rating or endorsement.">
 <meta property="og:url" content="{SITE}/contractors/{profile['slug']}/">
+{cg.META_EXTRA}
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 {cg.GA_HEAD}
@@ -687,7 +690,7 @@ def assign_profile_slugs(profiles, reserved):
     return slugs
 
 
-def update_sitemap(new_urls):
+def update_sitemap(new_urls, gen_date):
     """Preserve the sitemap cost_guides just wrote; replace contractor URLs."""
     blocks = []
     if os.path.exists(SITEMAP_PATH):
@@ -700,7 +703,8 @@ def update_sitemap(new_urls):
             blocks.append(block)
     for url, priority in new_urls:
         blocks.append(
-            f"  <url><loc>{url}</loc><changefreq>daily</changefreq>"
+            f"  <url><loc>{url}</loc><lastmod>{gen_date}</lastmod>"
+            f"<changefreq>daily</changefreq>"
             f"<priority>{priority}</priority></url>")
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
@@ -754,7 +758,7 @@ def main():
              for cell in cells]
     urls += [(f"{SITE}/contractors/{profiles[k]['slug']}/", "0.6")
              for k in sorted(profiles, key=lambda k: profiles[k]["slug"])]
-    update_sitemap(urls)
+    update_sitemap(urls, gen_date)
 
     print(f"contractor_pages: wrote hub + {len(cells)} ranking pages + "
           f"{len(profiles)} profiles from {len(records)} permits "
