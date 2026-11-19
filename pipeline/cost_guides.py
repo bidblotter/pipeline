@@ -1188,7 +1188,7 @@ STATIC_SITEMAP_URLS = [
 
 # Categories with a published /permits/ guide. Cost guides link to the
 # permit guide only for these (never to a guide that doesn't exist).
-PERMIT_GUIDES = {"deck"}
+PERMIT_GUIDES = {"addition", "deck", "pool", "screened-porch"}
 for _pg in sorted(PERMIT_GUIDES):
     STATIC_SITEMAP_URLS.append(
         (f"https://permitpicker.com/permits/{_pg}/", "weekly", "0.8"))
